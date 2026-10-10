@@ -1,0 +1,21 @@
+{
+  "dependencies": [
+    {
+      "name": "jolt",
+      "path": "third_party/jolt",
+      "patches": []
+    },
+    {
+      "name": "cgltf",
+      "path": "third_party/cgltf",
+      "patches": []
+    },
+    {
+      "name": "stb",
+      "path": "third_party/stb",
+      "patches": [
+        "patches/stb-truetype.patch"
+      ]
+    }
+  ]
+}

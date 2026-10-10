@@ -1,0 +1,3 @@
+dependencies/patches/** -whitespace
+tests/assets/fonts/*-OFL.txt -whitespace
+third_party/licenses/THIRD_PARTY_NOTICES.txt -whitespace
