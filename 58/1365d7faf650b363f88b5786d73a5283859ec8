@@ -1,0 +1,86 @@
+docs/ENGINE_STATUS.md
+  s_fbdf8bf039c74a::t_c4449807c40005 27-32,60
+README.md
+  s_fbdf8bf039c74a::t_b3b0f92f634620 14-15,23,28
+  s_fbdf8bf039c74a::t_e01c4da10c0754 11-13,16-20,24-25,27,29-32,34,38-40,42,53-54
+  s_fbdf8bf039c74a::t_31d83636aecccc 21-22,33,35-37,41,43-46,49,51-52
+  s_fbdf8bf039c74a::t_84ed7f5e662f18 47-48
+  s_fbdf8bf039c74a::t_3a6c35de41f169 26,50
+Makefile
+  s_fbdf8bf039c74a::t_d4db15ed26da6c 40-41,50,138-140,142,147-155,173
+tests/ecs_integration.cpp
+  s_fbdf8bf039c74a::t_04cd66c763ecc2 20-25,27,52-56,67-78,110-121,128-129
+engine.mk
+  s_fbdf8bf039c74a::t_b46812e32602a8 26
+  s_fbdf8bf039c74a::t_f1cfecfa108013 27
+docs/ENGINE_DESIGN.md
+  s_fbdf8bf039c74a::t_625fdf347da3e3 94
+  s_fbdf8bf039c74a::t_65d376a6ac3100 121-122
+  s_fbdf8bf039c74a::t_36c8a9ed2825c0 54-59,95-102,104,106-108,110-115,127-128,132-134,199-205
+  s_fbdf8bf039c74a::t_667411cffed93f 103,105,116-120,123-126
+  s_fbdf8bf039c74a::t_55218aa314f8bf 109,129
+  s_fbdf8bf039c74a::t_f7ca7bcf6b3330 138-139
+  s_fbdf8bf039c74a::t_1cbfd6d4d6940c 135
+  s_fbdf8bf039c74a::t_8bb8e7b66d11fb 79-85
+  s_fbdf8bf039c74a::t_f42301bb8660f3 136-137
+  s_fbdf8bf039c74a::t_c067954c454922 206
+src/platform/web/host.cpp
+  s_fbdf8bf039c74a::t_722b1c63ca8d04 2,304,306,308,312
+  s_fbdf8bf039c74a::t_1259dc50201832 303,305,307,309-311,313-314
+include/engine/jobs/executor.hpp
+  s_fbdf8bf039c74a::t_ecc0a07c175219 12-13,18-19,30
+  s_fbdf8bf039c74a::t_1687f28edb463f 31
+  s_fbdf8bf039c74a::t_fac95137edc20e 27,29
+src/jobs/executor.cpp
+  s_fbdf8bf039c74a::t_1f710510e4009e 22-23
+  s_fbdf8bf039c74a::t_205fd769a385e3 8-10,14,49,58-61,65,67,72-74,79-80,83
+  s_fbdf8bf039c74a::t_78b3a99f3b2aac 25-26,70,133-136
+  s_fbdf8bf039c74a::t_a0a4b4265485a3 47,54,110-113,122-124,128-129
+  s_fbdf8bf039c74a::t_976cd98d53a2bf 62-64,66,130-132
+  s_fbdf8bf039c74a::t_f4159a03720cba 35-42,116
+  s_fbdf8bf039c74a::t_e1c35674cef381 11-13,24,27-34,43-44,75,94,155
+  s_fbdf8bf039c74a::t_8f1644fa69256f 81
+include/engine/platform/web/host.hpp
+  s_fbdf8bf039c74a::t_569f7b72becdbd 35-38
+tests/runtime.cpp
+  s_fbdf8bf039c74a::t_e43b8acbf8349c 152,154-155,168-169
+  s_fbdf8bf039c74a::t_7add59ed609435 22-30,167
+  s_fbdf8bf039c74a::t_59987bc0ca612d 57-59
+  s_fbdf8bf039c74a::t_218c053b205a4b 2
+include/engine/jobs/browser_thread_budget.hpp
+  s_fbdf8bf039c74a::t_db6ce439ba4eb5 1-15
+src/physics/scheduler_job_system.cpp
+  s_fbdf8bf039c74a::t_de5396e512a5e3 1-164
+include/engine/physics/scheduler_job_system.hpp
+  s_fbdf8bf039c74a::t_b969cc8791aead 1-4,7-58
+  s_fbdf8bf039c74a::t_46114c5c0c65f5 5-6
+tests/physics_scheduler.cpp
+  s_fbdf8bf039c74a::t_6d648db7f8269a 1-180
+include/engine/physics/physics_world.hpp
+  s_fbdf8bf039c74a::t_2cb0c80a3c58c0 10-14,17,30,32-34,37-39,48,66
+src/physics/physics_world.cpp
+  s_fbdf8bf039c74a::t_fa6b0becee39a5 2-4,9-11,13-17,31-41,46-47,49-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.9",
+  "base_commit_sha": "581365d7faf650b363f88b5786d73a5283859ec8",
+  "prompts": {},
+  "sessions": {
+    "s_fbdf8bf039c74a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10d24-65ec-7e72-9466-f1d1d208f4ac",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Alexandr Hmyriak <agmyryak@playtika.com>",
+      "token_usage": {
+        "input_tokens": 327190,
+        "output_tokens": 53715,
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 11543552
+      },
+      "billing_source": "subscription"
+    }
+  }
+}
