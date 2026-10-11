@@ -13,15 +13,29 @@ render loop does not have to wait for a new simulation packet.
 
 ## Browser architecture
 
-```text
-Main browser thread          Simulation pthread          Render pthread
-───────────────────          ──────────────────          ──────────────
-DOM / input events           Fixed-step clock             OffscreenCanvas
-Viewport / host calls        Simulation pump              WebGPU renderer
-Worker startup                  │                              │
-                               │    Shared WASM memory        │
-                               └──► RequestedExchange ◄───────┘
-                                  request / produce / acquire
+```mermaid
+flowchart LR
+    subgraph Main["Browser main thread"]
+        DOM["DOM and input events"]
+        Viewport["Viewport and host services"]
+        Start["Start worker threads"]
+    end
+    subgraph Sim["Simulation pthread"]
+        Clock["Fixed-step clock"]
+        Pump["Simulation pump"]
+        Clock --> Pump
+    end
+    subgraph Render["Render pthread"]
+        Canvas["OffscreenCanvas"]
+        GPU["WebGPU renderer"]
+        Canvas --> GPU
+    end
+    Exchange[("RequestedExchange<br/>shared WASM memory")]
+    Start --> Sim
+    Start --> Render
+    Viewport -. "Atomic viewport state" .-> Render
+    Pump <-->|"produce / requested"| Exchange
+    GPU <-->|"request / acquire"| Exchange
 ```
 
 The [web host](src/platform/web/host.cpp) creates two Emscripten
@@ -41,16 +55,32 @@ The [WebGPU renderer demo](examples/webgpu-renderer-demo/main.cpp) uses
 Core's `FixedStepClock` and a single shared
 `RequestedExchange<DrawBatch>` object:
 
-```text
-Simulation worker             Shared exchange           Render worker
-─────────────────             ───────────────           ─────────────
-Run fixed simulation ticks                               Request packet
-If requested:
-  fill reusable DrawBatch ─────► ready
-Run more fixed ticks                                      Acquire if ready
-                                                        Keep last packet if not
-                                                        Request next packet
-Run more fixed ticks                                    Render current packet
+```mermaid
+sequenceDiagram
+    participant S as Simulation pthread
+    participant X as Shared RequestedExchange
+    participant R as Render pthread
+    R->>X: request()
+    loop Independent fixed simulation ticks
+        S->>S: FixedStepClock / simulation step(s)
+        opt A request is pending
+            S->>X: produce(fillBatch)
+            Note over X: Ready reusable draw packet
+        end
+    end
+    R->>X: acquire()
+    alt New packet ready
+        X-->>R: ReadHandle to new packet
+    else No new packet
+        X-->>R: Empty handle
+        Note over R: Reuse previous packet
+    end
+    R->>X: request() for next packet
+    par Overlapping work
+        R->>R: renderer.render(current packet)
+    and
+        S->>S: Continue simulation ticks
+    end
 ```
 
 The demo's simulation loop advances fixed steps independently of the render
