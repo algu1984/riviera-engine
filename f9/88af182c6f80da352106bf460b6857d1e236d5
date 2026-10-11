@@ -1,0 +1,52 @@
+Makefile
+  s_fbdf8bf039c74a::t_d584daaa58e685 39,49,109-113
+  s_fbdf8bf039c74a::t_d2a160589d02f2 147
+  s_fbdf8bf039c74a::t_858cbae67d2fcf 114
+src/renderer.cpp
+  s_fbdf8bf039c74a::t_9e0ec53b408016 945,955,977,979-1007
+  s_fbdf8bf039c74a::t_5b490030b907b9 376,382,395,399-400
+  s_fbdf8bf039c74a::t_38fbd691000070 363-375,377-381,384-388,390-394,396-398,401-431,437-470
+  s_fbdf8bf039c74a::t_e5c1b0917f17b0 432-436
+  s_fbdf8bf039c74a::t_0e99a9c839c3d7 471-472,838-843,847-849,861-864,866-875,907
+  s_fbdf8bf039c74a::t_b158abc5952578 383,389,850
+  s_fbdf8bf039c74a::t_5c72060790d260 773-774,834-837,844-846,851-860,865,876-877,906
+include/engine/particles/particle_system.hpp
+  s_fbdf8bf039c74a::t_4a27e76e9c99ad 1-2,5-26,28-34,38-53
+  s_fbdf8bf039c74a::t_dc7ecc551fcca5 27
+  s_fbdf8bf039c74a::t_aa58f7f6ce7489 3-4,35-37
+include/engine/renderer.hpp
+  s_fbdf8bf039c74a::t_f6dd3e55b78f26 4,69-71,73,95-96
+  s_fbdf8bf039c74a::t_6712637852f85b 61
+src/particles/particle_system.cpp
+  s_fbdf8bf039c74a::t_3746716fc93b95 1-45,48-60,63-64,68-72,74-77,80,85-93
+  s_fbdf8bf039c74a::t_1daf06d5d732b6 46-47,84
+  s_fbdf8bf039c74a::t_593114ce9382eb 61-62,65-67,73
+  s_fbdf8bf039c74a::t_0a5122c5f40ddf 78-79,81-83
+tests/particles.cpp
+  s_fbdf8bf039c74a::t_2b2b50640c5dc6 43,46
+  s_fbdf8bf039c74a::t_bee261f19b48ee 52
+  s_fbdf8bf039c74a::t_aa14f9ef73177d 1-42,44-45,47-51,53-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.9",
+  "base_commit_sha": "f988af182c6f80da352106bf460b6857d1e236d5",
+  "prompts": {},
+  "sessions": {
+    "s_fbdf8bf039c74a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10d24-65ec-7e72-9466-f1d1d208f4ac",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Alexandr Hmyriak <agmyryak@playtika.com>",
+      "token_usage": {
+        "input_tokens": 144515,
+        "output_tokens": 18096,
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 3411968
+      },
+      "billing_source": "subscription"
+    }
+  }
+}
