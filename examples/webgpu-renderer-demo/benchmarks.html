@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Riviera Engine · Native benchmark results</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="report">
+      <header>
+        <div>
+          <span class="eyebrow">RIVIERA ENGINE · NATIVE</span>
+          <h1>Benchmark results</h1>
+        </div>
+        <a href="index.html">WebGPU demo</a>
+      </header>
+      <p id="summary">Loading the recorded Core benchmark sample…</p>
+      <section class="benchmark-section">
+        <h2>ECS update</h2>
+        <p>
+          Median and p95 nanoseconds per tick; checksums help verify the work.
+        </p>
+        <div id="ecs"></div>
+      </section>
+      <section class="benchmark-section">
+        <h2>Job scheduler</h2>
+        <p>Measured task batches across the listed worker counts.</p>
+        <div id="scheduler"></div>
+      </section>
+      <section class="benchmark-section">
+        <h2>RequestedExchange</h2>
+        <p>Two-thread exchange latency and observed buffer capacity growths.</p>
+        <div id="exchange"></div>
+      </section>
+      <footer>
+        <a
+          href="https://github.com/algu1984/riviera-engine-core/blob/d65ad198f38c690bdbd38cdcea972f8bb16154eb/benchmarks/core.cpp"
+          >Core benchmark source</a
+        >
+        <a
+          href="https://github.com/algu1984/riviera-engine-core/blob/d65ad198f38c690bdbd38cdcea972f8bb16154eb/docs/PERFORMANCE.md"
+          >Run instructions</a
+        >
+        <a id="download" href="benchmarks/native-sample.json" download
+          >Download raw JSON</a
+        >
+      </footer>
+      <p class="license-note">
+        These are native Core measurements from the recorded environment, not
+        browser or GPU timings. Use the source instructions to reproduce them.
+      </p>
+      <p class="license-note">
+        Riviera Engine source is MIT licensed. Dependencies retain their own
+        terms; see <a href="LICENSE">the Engine license</a>,
+        <a href="licenses/cgltf-LICENSE">cgltf's license</a>, and
+        <a href="licenses/stb-LICENSE">stb's license</a>.
+      </p>
+    </main>
+    <script>
+      const number = (value) => new Intl.NumberFormat().format(value);
+      const table = (headers, rows) => {
+        const element = document.createElement("table");
+        const head = element.createTHead().insertRow();
+        for (const label of headers) {
+          const cell = document.createElement("th");
+          cell.scope = "col";
+          cell.textContent = label;
+          head.append(cell);
+        }
+        const body = element.createTBody();
+        for (const values of rows) {
+          const row = body.insertRow();
+          for (const value of values) {
+            const cell = row.insertCell();
+            cell.textContent = value;
+          }
+        }
+        return element;
+      };
+      async function loadResults() {
+        const response = await fetch("benchmarks/native-sample.json");
+        if (!response.ok)
+          throw new Error("Could not load the benchmark sample.");
+        const data = await response.json();
+        const environment = data.environment;
+        document.getElementById("summary").textContent =
+          `${data.benchmark_id} · recorded ${data.recorded_at} · ${environment.machine}, ${environment.cpu}, ${environment.operating_system}, ${environment.compiler}; ${data.sampling.independent_runs} independent runs × ${data.sampling.samples_per_run} samples`;
+        document.getElementById("ecs").append(
+          table(
+            [
+              "Entities",
+              `Median ${data.ecs.timing_unit}`,
+              `p95 ${data.ecs.timing_unit}`,
+              "Updates/s",
+              "Checksum",
+            ],
+            data.ecs.results.map((row) => [
+              number(row.entities),
+              number(row.median_ns_per_update_pass),
+              number(row.p95_ns_per_update_pass),
+              number(row.entity_updates_per_second),
+              row.checksum,
+            ]),
+          ),
+        );
+        document.getElementById("scheduler").append(
+          table(
+            [
+              "Tasks",
+              "Work iterations/task",
+              "Workers",
+              "Median ns",
+              "p95 ns",
+              "Checksum",
+            ],
+            data.job_scheduler.workloads.flatMap((workload) =>
+              workload.results.map((row) => [
+                number(data.job_scheduler.tasks_per_sample),
+                number(workload.work_iterations_per_task),
+                number(row.workers),
+                number(row.median_ns),
+                number(row.p95_ns),
+                row.checksum,
+              ]),
+            ),
+          ),
+        );
+        document.getElementById("exchange").append(
+          table(
+            [
+              "Payload floats",
+              "Payload bytes",
+              "Workers",
+              "Median ns",
+              "p95 ns",
+              "Capacity growths",
+            ],
+            data.requested_exchange.results.map((row) => [
+              number(row.payload_floats),
+              number(row.payload_bytes),
+              number(row.workers),
+              number(row.median_ns),
+              number(row.p95_ns),
+              number(row.capacity_growths),
+            ]),
+          ),
+        );
+      }
+      loadResults().catch((error) => {
+        document.getElementById("summary").textContent = error.message;
+      });
+    </script>
+  </body>
+</html>

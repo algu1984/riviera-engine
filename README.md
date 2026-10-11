@@ -20,8 +20,20 @@ Set `CORE_ROOT`, `JOLT_ROOT`, `CGLTF_ROOT`, or `STB_ROOT` to use alternate
 checkouts. `make test` runs engine and core native checks, including the generic
 physics service smoke test. `make wasm-test` runs core's pthread-enabled portability
 tests under Node. The browser renderer uses Emscripten's Dawn WebGPU port and is
-integrated by a parent application. To build Jolt independently, run
+integrated by a parent application. `make webgpu-renderer-demo` builds an isolated
+procedural workload page that uses the real engine renderer; serve it with
+`python3 examples/webgpu-renderer-demo/serve.py`. See [performance demo notes](docs/PERFORMANCE.md). To build Jolt independently, run
 `make build/jolt-native/libJolt.a` or `make build/jolt-wasm/libJolt.a`.
+The [live WebGPU demo](https://algu1984.github.io/riviera-engine/) and
+[Core benchmark results](https://algu1984.github.io/riviera-engine/benchmarks.html)
+are published through the manually dispatched `Build and publish WebGPU demo`
+Pages workflow; pushes and pull requests do not trigger it.
+
+## License
+
+Riviera Engine source code is released under the MIT License; see [LICENSE](LICENSE).
+Third-party dependencies retain their own licenses and notices. The published
+demo includes the relevant cgltf and stb license files under `licenses/`.
 
 The UI test uses local font fixtures in `tests/assets/fonts`, with each font's OFL notice alongside it.
 

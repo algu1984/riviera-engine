@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Riviera Engine · WebGPU workload</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <span class="eyebrow">RIVIERA ENGINE · WEBGPU</span>
+          <h1>Renderer workload</h1>
+        </div>
+        <label class="count"
+          >Objects
+          <select id="count">
+            <option value="100">100</option>
+            <option value="1000">1,000</option>
+            <option value="4000">4,000</option>
+          </select></label
+        >
+      </header>
+      <section class="stage">
+        <canvas id="game" width="1024" height="640"></canvas>
+        <div id="boot-status" role="status">Checking browser isolation…</div>
+        <div id="render-error" hidden>
+          Renderer reported a WebGPU error. See the browser console.
+        </div>
+      </section>
+      <section class="metrics" aria-label="Live renderer measurements">
+        <div>
+          <span>Frame cadence</span><strong id="metric-fps">—</strong
+          ><small id="metric-cadence">—</small>
+        </div>
+        <div>
+          <span>CPU renderer call</span><strong id="metric-cpu">—</strong
+          ><small>includes command submission; not GPU time</small>
+        </div>
+        <div>
+          <span>Simulation pump</span><strong id="metric-sim">—</strong
+          ><small>fixed 120 Hz clock</small>
+        </div>
+        <div>
+          <span>Draw records</span><strong id="metric-draws">—</strong
+          ><small>reused cube and sphere meshes</small>
+        </div>
+        <div>
+          <span>Simulation ticks</span><strong id="metric-ticks">—</strong
+          ><small>fixed 1/120 s steps since load</small>
+        </div>
+        <div>
+          <span>Packet age</span><strong id="metric-age">—</strong
+          ><small>when consumed by renderer</small>
+        </div>
+        <div>
+          <span>Draw extractions</span><strong id="metric-extractions">—</strong
+          ><small>on simulation worker</small>
+        </div>
+        <div>
+          <span>Capacity growths</span><strong id="metric-grows">—</strong
+          ><small>counted after startup reserve</small>
+        </div>
+        <div>
+          <span>Rendered frames</span><strong id="metric-frames">—</strong
+          ><small>completed renderer calls</small>
+        </div>
+        <div>
+          <span>Renderer draw calls</span><strong id="metric-calls">—</strong
+          ><small>scene and shadow passes, CPU counted</small>
+        </div>
+      </section>
+      <footer>
+        <span>Drag the angle slider to orbit the camera.</span
+        ><input
+          id="angle"
+          type="range"
+          min="-3.14"
+          max="3.14"
+          step="0.01"
+          value="0.55"
+          aria-label="Camera orbit angle"
+        /><button id="download-report" type="button">Download report</button
+        ><a href="PERFORMANCE.md">How to read these measurements</a>
+      </footer>
+    </main>
+    <script>
+      const bootStatus = document.getElementById("boot-status");
+      const reloadKey = `riviera-demo-sw-reload:${location.pathname}`;
+      function clearReloadGuard() {
+        try {
+          sessionStorage.removeItem(reloadKey);
+        } catch {}
+      }
+      function showBootError(message) {
+        bootStatus.replaceChildren(document.createTextNode(message + " "));
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.textContent = "Retry";
+        retry.addEventListener("click", () => {
+          clearReloadGuard();
+          location.reload();
+        });
+        bootStatus.append(retry);
+      }
+
+      var Module = {
+        onRuntimeInitialized() {
+          bootStatus.hidden = true;
+          const count = document.getElementById("count");
+          const angle = document.getElementById("angle");
+          count.addEventListener("change", () =>
+            Module._set_object_count(Number(count.value)),
+          );
+          angle.addEventListener("input", () =>
+            Module._set_camera_angle(Number(angle.value)),
+          );
+          document
+            .getElementById("download-report")
+            .addEventListener("click", () => {
+              const ids = [
+                "metric-fps",
+                "metric-cadence",
+                "metric-cpu",
+                "metric-sim",
+                "metric-draws",
+                "metric-age",
+                "metric-extractions",
+                "metric-grows",
+                "metric-frames",
+                "metric-calls",
+              ];
+              const report = Object.fromEntries(
+                ids.map((id) => [
+                  id.replace("metric-", ""),
+                  document.getElementById(id).textContent,
+                ]),
+              );
+              report.objectCount = Number(count.value);
+              report.resolution = "1024x640";
+              report.capturedAt = new Date().toISOString();
+              const link = document.createElement("a");
+              link.href = URL.createObjectURL(
+                new Blob([JSON.stringify(report, null, 2)], {
+                  type: "application/json",
+                }),
+              );
+              link.download = "riviera-webgpu-renderer-report.json";
+              link.click();
+              URL.revokeObjectURL(link.href);
+            });
+        },
+        onAbort(reason) {
+          showBootError(`The WebAssembly renderer could not start: ${reason}`);
+        },
+      };
+
+      async function startRenderer() {
+        if (window.crossOriginIsolated === true) {
+          clearReloadGuard();
+          const script = document.createElement("script");
+          script.src = new URL("index.js", document.baseURI);
+          script.onerror = () =>
+            showBootError("The WebAssembly files could not be loaded.");
+          document.head.append(script);
+          return;
+        }
+        if (!("serviceWorker" in navigator)) {
+          showBootError(
+            "This browser cannot enable the isolation required by threaded WebAssembly.",
+          );
+          return;
+        }
+        try {
+          if (sessionStorage.getItem(reloadKey)) {
+            showBootError(
+              "The isolation worker did not take control. Check browser support, then retry.",
+            );
+            return;
+          }
+          sessionStorage.setItem(reloadKey, "attempted");
+        } catch {
+          showBootError(
+            "Session storage is unavailable, so the page cannot safely retry isolation automatically.",
+          );
+          return;
+        }
+        bootStatus.textContent =
+          "Enabling the isolation required by threaded WebAssembly…";
+        try {
+          const deadline = Date.now() + 8000;
+          const bounded = (promise, label) =>
+            Promise.race([
+              promise,
+              new Promise((_, reject) =>
+                setTimeout(
+                  () => reject(new Error(`${label} timed out`)),
+                  Math.max(0, deadline - Date.now()),
+                ),
+              ),
+            ]);
+          await bounded(
+            navigator.serviceWorker.register(
+              new URL("coi-serviceworker.js", document.baseURI),
+              { scope: new URL("./", document.baseURI).pathname },
+            ),
+            "Service worker registration",
+          );
+          await bounded(
+            navigator.serviceWorker.ready,
+            "Service worker activation",
+          );
+          if (!navigator.serviceWorker.controller) {
+            await bounded(
+              new Promise((resolve) =>
+                navigator.serviceWorker.addEventListener(
+                  "controllerchange",
+                  resolve,
+                  {
+                    once: true,
+                  },
+                ),
+              ),
+              "Service worker control",
+            );
+          }
+          if (navigator.serviceWorker.controller) {
+            location.reload();
+            return;
+          }
+          throw new Error("The isolation worker did not take control");
+        } catch (error) {
+          showBootError(`Could not enable browser isolation: ${error.message}`);
+        }
+      }
+
+      startRenderer();
+    </script>
+  </body>
+</html>

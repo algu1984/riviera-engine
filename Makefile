@@ -165,3 +165,36 @@ test: require-dependencies engine-test scene-test ecs-integration-test ui-test p
 
 clean:
 	rm -rf build
+
+WEBGPU_DEMO_DIR := $(ENGINE_ROOT)/build/webgpu-renderer-demo
+WEBGPU_DEMO_PAGE_SOURCES := examples/webgpu-renderer-demo/index.html \
+  examples/webgpu-renderer-demo/benchmarks.html \
+  examples/webgpu-renderer-demo/coi-serviceworker.js \
+  examples/webgpu-renderer-demo/style.css docs/PERFORMANCE.md LICENSE \
+  third_party/cgltf/LICENSE third_party/stb/LICENSE \
+  $(CORE_ROOT)/benchmarks/results/native-sample.json
+.PHONY: webgpu-renderer-demo
+$(WEBGPU_DEMO_DIR)/index.js: examples/webgpu-renderer-demo/main.cpp \
+  src/renderer.cpp src/platform/web/host.cpp src/platform/web/gpu_surface.cpp \
+  src/graphics/frame_graph/frame_graph.cpp $(ENGINE_HEADERS) $(CORE_HEADERS) \
+  engine.mk Makefile
+	mkdir -p $(WEBGPU_DEMO_DIR)
+	$(EMXX) -std=c++20 -O2 -Wall -Wextra $(ENGINE_WEB_THREAD_CPPFLAGS) \
+	  $(ENGINE_WEB_THREAD_LDFLAGS) -sASSERTIONS=1 $(ENGINE_INCLUDE_FLAGS) \
+	  examples/webgpu-renderer-demo/main.cpp src/renderer.cpp \
+	  src/platform/web/host.cpp src/platform/web/gpu_surface.cpp \
+	  src/graphics/frame_graph/frame_graph.cpp -o $@
+$(WEBGPU_DEMO_DIR)/index.html: $(WEBGPU_DEMO_PAGE_SOURCES) $(WEBGPU_DEMO_DIR)/index.js
+	cp examples/webgpu-renderer-demo/index.html $@
+	cp examples/webgpu-renderer-demo/coi-serviceworker.js $(WEBGPU_DEMO_DIR)/coi-serviceworker.js
+	cp examples/webgpu-renderer-demo/style.css $(WEBGPU_DEMO_DIR)/style.css
+	cp docs/PERFORMANCE.md $(WEBGPU_DEMO_DIR)/PERFORMANCE.md
+	cp examples/webgpu-renderer-demo/benchmarks.html $(WEBGPU_DEMO_DIR)/benchmarks.html
+	mkdir -p $(WEBGPU_DEMO_DIR)/benchmarks
+	cp $(CORE_ROOT)/benchmarks/results/native-sample.json $(WEBGPU_DEMO_DIR)/benchmarks/native-sample.json
+	cp LICENSE $(WEBGPU_DEMO_DIR)/LICENSE
+	mkdir -p $(WEBGPU_DEMO_DIR)/licenses
+	cp third_party/cgltf/LICENSE $(WEBGPU_DEMO_DIR)/licenses/cgltf-LICENSE
+	cp third_party/stb/LICENSE $(WEBGPU_DEMO_DIR)/licenses/stb-LICENSE
+webgpu-renderer-demo: $(WEBGPU_DEMO_DIR)/index.html $(WEBGPU_DEMO_DIR)/index.js
+	test -s $(WEBGPU_DEMO_DIR)/index.wasm

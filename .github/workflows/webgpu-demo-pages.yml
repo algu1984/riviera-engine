@@ -1,0 +1,83 @@
+name: Build and publish WebGPU demo
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: webgpu-demo-pages-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - name: Check out Riviera Engine
+        uses: actions/checkout@v4
+        with:
+          path: riviera-engine
+          submodules: false
+
+      - name: Initialize renderer asset libraries
+        run: git -C riviera-engine submodule update --init third_party/cgltf third_party/stb
+
+      - name: Check out Riviera Engine Core
+        uses: actions/checkout@v4
+        with:
+          repository: algu1984/riviera-engine-core
+          ref: d65ad198f38c690bdbd38cdcea972f8bb16154eb
+          path: riviera-engine-core
+          persist-credentials: false
+
+      - name: Check out Emscripten SDK
+        uses: actions/checkout@v4
+        with:
+          repository: emscripten-core/emsdk
+          ref: 6.0.10
+          path: emsdk
+          persist-credentials: false
+
+      - name: Install Emscripten 6.0.10
+        run: |
+          ./emsdk/emsdk install 6.0.10
+          ./emsdk/emsdk activate 6.0.10
+
+      - name: Build the demo
+        shell: bash
+        run: |
+          source ./emsdk/emsdk_env.sh
+          make -C riviera-engine webgpu-renderer-demo CORE_ROOT="$GITHUB_WORKSPACE/riviera-engine-core"
+          test -s riviera-engine/build/webgpu-renderer-demo/index.js
+          test -s riviera-engine/build/webgpu-renderer-demo/index.wasm
+          test -s riviera-engine/build/webgpu-renderer-demo/benchmarks.html
+          test -s riviera-engine/build/webgpu-renderer-demo/benchmarks/native-sample.json
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: false
+
+      - name: Upload the static demo
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: riviera-engine/build/webgpu-renderer-demo
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

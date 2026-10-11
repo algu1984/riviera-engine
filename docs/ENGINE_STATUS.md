@@ -58,7 +58,14 @@ full application deployment. Browser applications use `ENGINE_WEB_THREAD_CPPFLAG
 and `ENGINE_WEB_THREAD_LDFLAGS` from `engine.mk` for a shared-memory Pthreads build,
 OffscreenCanvas transfer, a two-worker startup pool, and Emscripten's Dawn WebGPU
 port. The page must be cross-origin isolated (COOP same-origin and COEP
-require-corp) for SharedArrayBuffer. All linked C++ static libraries, including
+require-corp) for SharedArrayBuffer. `make webgpu-renderer-demo` builds an isolated
+procedural renderer workload page using the existing `Renderer`; its localhost-only
+server supplies those headers. For static hosting without configurable response
+headers, the demo uses a same-origin service worker to set COOP/COEP before loading
+its threaded WebAssembly module. The `Build and publish WebGPU demo` Pages workflow
+is manual-only and does not enable Pages settings. See [performance demo
+notes](PERFORMANCE.md) for its metrics, fixed resolution, publishing steps and the
+existing 4,096-draw renderer limit. All linked C++ static libraries, including
 Jolt, must be compiled with the same `-pthread` setting; `make jolt-wasm-pthread`
 produces the matching Jolt archive.
 
