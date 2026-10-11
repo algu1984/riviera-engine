@@ -15,27 +15,14 @@ render loop does not have to wait for a new simulation packet.
 
 ```mermaid
 flowchart LR
-    subgraph Main["Browser main thread"]
-        DOM["DOM and input events"]
-        Viewport["Viewport and host services"]
-        Start["Start worker threads"]
-    end
-    subgraph Sim["Simulation pthread"]
-        Clock["Fixed-step clock"]
-        Pump["Simulation pump"]
-        Clock --> Pump
-    end
-    subgraph Render["Render pthread"]
-        Canvas["OffscreenCanvas"]
-        GPU["WebGPU renderer"]
-        Canvas --> GPU
-    end
-    Exchange[("RequestedExchange<br/>shared WASM memory")]
-    Start --> Sim
-    Start --> Render
-    Viewport -. "Atomic viewport state" .-> Render
-    Pump <-->|"produce / requested"| Exchange
-    GPU <-->|"request / acquire"| Exchange
+    Browser["Browser / Main thread"]
+    Sim["Simulation worker"]
+    Render["Render worker"]
+    Shared[("Shared WASM memory<br/>RequestedExchange")]
+    Browser --> Sim
+    Browser --> Render
+    Sim <--> Shared
+    Render <--> Shared
 ```
 
 The [web host](src/platform/web/host.cpp) creates two Emscripten
@@ -57,29 +44,17 @@ Core's `FixedStepClock` and a single shared
 
 ```mermaid
 sequenceDiagram
-    participant S as Simulation pthread
-    participant X as Shared RequestedExchange
-    participant R as Render pthread
-    R->>X: request()
-    loop Independent fixed simulation ticks
-        S->>S: FixedStepClock / simulation step(s)
-        opt A request is pending
-            S->>X: produce(fillBatch)
-            Note over X: Ready reusable draw packet
-        end
-    end
-    R->>X: acquire()
-    alt New packet ready
-        X-->>R: ReadHandle to new packet
-    else No new packet
-        X-->>R: Empty handle
-        Note over R: Reuse previous packet
-    end
-    R->>X: request() for next packet
-    par Overlapping work
-        R->>R: renderer.render(current packet)
+    participant S as Simulation
+    participant X as RequestedExchange
+    participant R as Render
+    R->>X: Request snapshot
+    S->>S: Fixed updates
+    S->>X: Publish snapshot
+    R->>X: Take latest if ready
+    par
+        S->>S: Continue updating
     and
-        S->>S: Continue simulation ticks
+        R->>R: Render frame
     end
 ```
 
