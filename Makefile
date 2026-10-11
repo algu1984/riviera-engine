@@ -36,6 +36,7 @@ ENGINE_DEPENDENCIES_TOOL ?= $(CORE_ROOT)/tools/dependencies.py
 ENGINE_CPU_SOURCES := $(ENGINE_ROOT)/src/jobs/executor.cpp \
   $(ENGINE_ROOT)/src/graphics/frame_graph/frame_graph.cpp \
   $(ENGINE_ROOT)/src/scene/scene.cpp $(ENGINE_ROOT)/src/ui/canvas.cpp \
+  $(ENGINE_ROOT)/src/particles/particle_system.cpp \
   $(ENGINE_ROOT)/src/physics/physics_world.cpp
 ENGINE_OBJECTS := $(patsubst $(ENGINE_ROOT)/src/%.cpp,build/%.o,$(ENGINE_CPU_SOURCES))
 TEST_FLAGS := $(CXXFLAGS) $(ENGINE_INCLUDE_FLAGS) -I$(ENGINE_ROOT)/tests
@@ -45,7 +46,7 @@ JOLT_FLAGS := -G Ninja -DCMAKE_BUILD_TYPE=Distribution -DTARGET_UNIT_TESTS=OFF \
   -DINTERPROCEDURAL_OPTIMIZATION=OFF -DENABLE_ALL_WARNINGS=OFF -DJPH_USE_DX12=OFF \
   -DJPH_USE_VK=OFF -DJPH_USE_MTL=OFF -DJPH_USE_CPU_COMPUTE=OFF
 
-.PHONY: all build test deps deps-check require-dependencies engine-test scene-test ecs-integration-test ui-test physics-world-test core-test \
+.PHONY: all build test deps deps-check require-dependencies engine-test scene-test ecs-integration-test ui-test particle-test physics-world-test core-test \
   ecs-test runtime-test hierarchy-test jobs-test xenium-portability-test wasm-test ecs-wasm-test \
   clean format format-check
 
@@ -105,6 +106,12 @@ build/ui-test: $(ENGINE_ROOT)/src/ui/canvas.cpp tests/ui.cpp $(ENGINE_HEADERS) \
 ui-test: require-dependencies build/ui-test
 	./build/ui-test
 
+build/particle-test: $(ENGINE_ROOT)/src/particles/particle_system.cpp tests/particles.cpp $(ENGINE_HEADERS) $(CORE_HEADERS) Makefile engine.mk
+	mkdir -p build
+	$(CXX) $(TEST_FLAGS) $(filter %.cpp,$^) -o $@
+particle-test: build/particle-test
+	./build/particle-test
+
 build/jolt-wasm/libJolt.a: $(ENGINE_JOLT_FILES) $(ENGINE_DEPENDENCIES_MANIFEST) Makefile engine.mk | require-dependencies
 	emcmake cmake -S $(JOLT_ROOT)/Build -B build/jolt-wasm $(JOLT_FLAGS)
 	cmake --build build/jolt-wasm --target Jolt -j 6
@@ -137,7 +144,7 @@ wasm-test:
 ecs-wasm-test:
 	$(MAKE) -C "$(CORE_ROOT)" wasm-test
 
-test: require-dependencies engine-test scene-test ecs-integration-test ui-test physics-world-test core-test
+test: require-dependencies engine-test scene-test ecs-integration-test ui-test particle-test physics-world-test core-test
 
 -include tools/format.mk
 

@@ -1,6 +1,7 @@
 #pragma once
 #include "graphics/frame_graph/frame_graph.hpp"
 #include "graphics/render_object.hpp"
+#include "particles/particle_system.hpp"
 #include "ui/vertex.hpp"
 #include <engine/math.hpp>
 #include <functional>
@@ -57,6 +58,7 @@ struct Renderer {
     std::vector<wgpu::TextureView> frameViews;
     std::vector<engine::graphics::ResourceDesc> frameTextureDescriptions;
     uint64_t uiCapacity = 1024 * 1024;
+    uint64_t particleCapacity = 4096 * 48;
     uint32_t frameGraphPasses = 0, frameGraphTextureSlots = 0;
     wgpu::Instance instance;
     wgpu::Adapter adapter;
@@ -64,10 +66,11 @@ struct Renderer {
     wgpu::Queue queue;
     wgpu::Surface surface;
     wgpu::TextureFormat format;
-    wgpu::RenderPipeline opaque, transparent, shadowPipe, skyPipe, uiPipe;
-    wgpu::Buffer globals, objects, uiVertices;
-    wgpu::BindGroup globalBG, shadowBG, uiBG;
+    wgpu::RenderPipeline opaque, transparent, shadowPipe, skyPipe, uiPipe, particlePipe;
+    wgpu::Buffer globals, objects, uiVertices, particleVertices, particleGlobals;
+    wgpu::BindGroup globalBG, shadowBG, uiBG, particleGlobalBG;
     wgpu::BindGroupLayout objectLayout, uiLayout;
+    wgpu::BindGroupLayout particleGlobalLayout;
     wgpu::Sampler sampler, shadowSampler, uiSampler;
     wgpu::Texture depth, msaa, shadow;
     wgpu::TextureView depthView, msaaView, shadowView, white, flatNormal;
@@ -89,6 +92,7 @@ struct Renderer {
     int loadSurface(const char* folder, float uvScale = 1, V3 tint = {1, 1, 1});
     bool loadModel(const char* path, std::vector<int>& out, const ModelImportOptions& options = {});
     void render(const std::vector<Draw>& draws, V3 eye, V3 target, V3 shadowCenter, float time,
-                float fovRadians, const std::vector<UiVertex>& ui = {});
+                float fovRadians, const std::vector<UiVertex>& ui = {},
+                std::span<const particles::ParticleInstance> particles = {});
 };
 } // namespace engine

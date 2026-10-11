@@ -360,6 +360,116 @@ struct Out {
     uiFs.targets = &uiCt;
     uiPd.fragment = &uiFs;
     uiPipe = device.CreateRenderPipeline(&uiPd);
+    static const char* particleShader = R"(
+struct Camera { vp: mat4x4f, right: vec4f, up: vec4f };
+@group(0) @binding(0) var<uniform> camera: Camera;
+struct In {
+    @location(0) position: vec4f,
+    @location(1) color: vec4f,
+    @location(2) params: vec4f,
+};
+struct Out {
+    @builtin(position) clip: vec4f,
+    @location(0) uv: vec2f,
+    @location(1) color: vec4f,
+    @location(2) age: f32,
+    @location(3) seed: f32,
+};
+@vertex fn vs_particle(v: In, @builtin(vertex_index) vertex: u32) -> Out {
+    let corners = array<vec2f, 6>(vec2f(-1,-1), vec2f(1,-1), vec2f(1,1),
+                                  vec2f(-1,-1), vec2f(1,1), vec2f(-1,1));
+    let corner = corners[vertex];
+    let world = v.position.xyz + (camera.right.xyz * corner.x + camera.up.xyz * corner.y) *
+                v.params.x * (0.72 + 3.0 * clamp(v.params.z / max(v.params.w, 0.001), 0.0, 1.0));
+    var out: Out;
+    out.clip = camera.vp * vec4f(world, 1);
+    out.uv = corner * 0.5 + vec2f(0.5);
+    out.color = v.color;
+    out.age = v.params.z / max(v.params.w, 0.001);
+    out.seed = v.params.y;
+    return out;
+}
+@fragment fn fs_particle(v: Out) -> @location(0) vec4f {
+    let p = v.uv * 2.0 - vec2f(1.0);
+    let radius = length(p);
+    let warp = 0.12 * sin(p.x * 9.0 + v.age * 5.0 + v.seed) * cos(p.y * 7.0 - v.age * 4.0 + v.seed);
+    let edge = 1.0 - smoothstep(0.60 + warp, 1.0 + warp, radius);
+    let wisps = 0.78 + 0.22 * sin((p.x + p.y) * 12.0 + v.age * 3.0);
+    let fade = (1.0 - smoothstep(0.52, 1.0, v.age));
+    let birth = smoothstep(0.0, 0.08, v.age);
+    let alpha = edge * wisps * v.color.a * fade * birth;
+    return vec4f(v.color.rgb, alpha);
+}
+)";
+    wgpu::ShaderSourceWGSL particleWgsl{};
+    particleWgsl.code = particleShader;
+    wgpu::ShaderModuleDescriptor particleShaderDesc{};
+    particleShaderDesc.nextInChain = &particleWgsl;
+    auto particleModule = device.CreateShaderModule(&particleShaderDesc);
+    wgpu::BindGroupLayoutEntry particleGlobalEntry{};
+    particleGlobalEntry.binding = 0;
+    particleGlobalEntry.visibility = wgpu::ShaderStage::Vertex;
+    particleGlobalEntry.buffer.type = wgpu::BufferBindingType::Uniform;
+    particleGlobalEntry.buffer.minBindingSize = 96;
+    wgpu::BindGroupLayoutDescriptor particleGlobalDesc{};
+    particleGlobalDesc.entryCount = 1;
+    particleGlobalDesc.entries = &particleGlobalEntry;
+    particleGlobalLayout = device.CreateBindGroupLayout(&particleGlobalDesc);
+    particleGlobals = buffer(device, 96, wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+    wgpu::BindGroupEntry particleGlobalBind{};
+    particleGlobalBind.binding = 0;
+    particleGlobalBind.buffer = particleGlobals;
+    particleGlobalBind.size = 96;
+    wgpu::BindGroupDescriptor particleGlobalGroupDesc{};
+    particleGlobalGroupDesc.layout = particleGlobalLayout;
+    particleGlobalGroupDesc.entryCount = 1;
+    particleGlobalGroupDesc.entries = &particleGlobalBind;
+    particleGlobalBG = device.CreateBindGroup(&particleGlobalGroupDesc);
+    wgpu::PipelineLayoutDescriptor particleLayoutDesc{};
+    particleLayoutDesc.bindGroupLayoutCount = 1;
+    particleLayoutDesc.bindGroupLayouts = &particleGlobalLayout;
+    wgpu::VertexAttribute particleAttributes[3]{};
+    for (uint32_t i = 0; i < 3; ++i) {
+        particleAttributes[i].shaderLocation = i;
+        particleAttributes[i].format = wgpu::VertexFormat::Float32x4;
+        particleAttributes[i].offset = uint64_t(i) * 16;
+    }
+    wgpu::VertexBufferLayout particleVb{};
+    particleVb.arrayStride = 48;
+    particleVb.stepMode = wgpu::VertexStepMode::Instance;
+    particleVb.attributeCount = 3;
+    particleVb.attributes = particleAttributes;
+    wgpu::RenderPipelineDescriptor particlePd{};
+    particlePd.layout = device.CreatePipelineLayout(&particleLayoutDesc);
+    particlePd.vertex.module = particleModule;
+    particlePd.vertex.entryPoint = "vs_particle";
+    particlePd.vertex.bufferCount = 1;
+    particlePd.vertex.buffers = &particleVb;
+    particlePd.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
+    particlePd.primitive.cullMode = wgpu::CullMode::None;
+    particlePd.multisample.count = 4;
+    wgpu::DepthStencilState particleDepth{};
+    particleDepth.format = wgpu::TextureFormat::Depth32Float;
+    particleDepth.depthWriteEnabled = false;
+    particleDepth.depthCompare = wgpu::CompareFunction::LessEqual;
+    particlePd.depthStencil = &particleDepth;
+    wgpu::BlendState particleBlend{};
+    particleBlend.color.srcFactor = wgpu::BlendFactor::SrcAlpha;
+    particleBlend.color.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
+    particleBlend.alpha.srcFactor = wgpu::BlendFactor::One;
+    particleBlend.alpha.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
+    wgpu::ColorTargetState particleTarget{};
+    particleTarget.format = format;
+    particleTarget.blend = &particleBlend;
+    wgpu::FragmentState particleFragment{};
+    particleFragment.module = particleModule;
+    particleFragment.entryPoint = "fs_particle";
+    particleFragment.targetCount = 1;
+    particleFragment.targets = &particleTarget;
+    particlePd.fragment = &particleFragment;
+    particlePipe = device.CreateRenderPipeline(&particlePd);
+    particleVertices =
+        buffer(device, particleCapacity, wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst);
     uiVertices =
         buffer(device, 1024 * 1024, wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst);
     unsigned char pixel[4] = {255, 255, 255, 255}, normalPixel[4] = {128, 128, 255, 255};
@@ -660,7 +770,8 @@ bool Renderer::loadModel(const char* path, std::vector<int>& out,
     return !out.empty();
 }
 void Renderer::render(const std::vector<Draw>& draws, V3 eye, V3 target, V3 shadowCenter,
-                      float time, float fovRadians, const std::vector<UiVertex>& ui) {
+                      float time, float fovRadians, const std::vector<UiVertex>& ui,
+                      std::span<const particles::ParticleInstance> particles) {
     if (!ready || !width || !height || draws.size() > 4096)
         return;
     struct Global {
@@ -720,6 +831,50 @@ void Renderer::render(const std::vector<Draw>& draws, V3 eye, V3 target, V3 shad
         }
         queue.WriteBuffer(uiVertices, 0, ui.data(), bytes);
     }
+    struct ParticleGpu {
+        float position[4], color[4], params[4];
+    };
+    std::vector<particles::ParticleInstance> sortedParticles(particles.begin(), particles.end());
+    const V3 viewDirection = norm(target - eye);
+    std::stable_sort(sortedParticles.begin(), sortedParticles.end(),
+                     [eye, viewDirection](const auto& a, const auto& b) {
+                         return dot(a.position - eye, viewDirection) >
+                                dot(b.position - eye, viewDirection);
+                     });
+    std::vector<ParticleGpu> particleData;
+    particleData.reserve(sortedParticles.size());
+    for (const auto& particle : sortedParticles) {
+        particleData.push_back(
+            {{particle.position.x, particle.position.y, particle.position.z, 1},
+             {particle.color.x, particle.color.y, particle.color.z, particle.opacity},
+             {particle.size, particle.seed, particle.age, particle.lifetime}});
+    }
+    if (!particleData.empty()) {
+        const uint64_t bytes = particleData.size() * sizeof(ParticleGpu);
+        if (bytes > particleCapacity) {
+            while (particleCapacity < bytes)
+                particleCapacity *= 2;
+            particleVertices = buffer(device, particleCapacity,
+                                      wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst);
+        }
+        queue.WriteBuffer(particleVertices, 0, particleData.data(), bytes);
+        struct ParticleCamera {
+            M4 vp;
+            float right[4], up[4];
+        } camera{};
+        camera.vp = g.vp;
+        V3 right = norm(cross(viewDirection, {0, 1, 0}));
+        if (length(right) < .001f)
+            right = {1, 0, 0};
+        V3 up = norm(cross(right, viewDirection));
+        camera.right[0] = right.x;
+        camera.right[1] = right.y;
+        camera.right[2] = right.z;
+        camera.up[0] = up.x;
+        camera.up[1] = up.y;
+        camera.up[2] = up.z;
+        queue.WriteBuffer(particleGlobals, 0, &camera, sizeof(camera));
+    }
     wgpu::SurfaceTexture st{};
     surface.GetCurrentTexture(&st);
     if (!st.texture)
@@ -748,8 +903,8 @@ void Renderer::render(const std::vector<Draw>& draws, V3 eye, V3 target, V3 shad
                        true);
     auto shadowVersion = graph.next(shadowResource), sceneColor = graph.next(colorResource),
          sceneDepth = graph.next(depthResource);
-    auto uiColor = graph.next(colorResource), uiDepth = graph.next(depthResource),
-         presentColor = graph.next(surfaceResource);
+    auto particleColor = graph.next(colorResource), uiColor = graph.next(colorResource),
+         uiDepth = graph.next(depthResource), presentColor = graph.next(surfaceResource);
     auto draw = [&](wgpu::RenderPassEncoder& pass, size_t i) {
         auto& m = meshes[draws[i].mesh];
         uint32_t offset = i * 256;
@@ -787,7 +942,7 @@ void Renderer::render(const std::vector<Draw>& draws, V3 eye, V3 target, V3 shad
         "forward scene",
         {Access::read(shadowVersion, Usage::Sampled),
          Access::write(sceneColor, Usage::ColorAttachment),
-         Access::write(sceneDepth, Usage::DepthAttachment, false)},
+         Access::write(sceneDepth, Usage::DepthAttachment)},
         [&] {
             wgpu::RenderPassColorAttachment color{};
             color.view = msaaView;
@@ -797,7 +952,7 @@ void Renderer::render(const std::vector<Draw>& draws, V3 eye, V3 target, V3 shad
             wgpu::RenderPassDepthStencilAttachment depthAttachment{};
             depthAttachment.view = depthView;
             depthAttachment.depthLoadOp = wgpu::LoadOp::Clear;
-            depthAttachment.depthStoreOp = wgpu::StoreOp::Discard;
+            depthAttachment.depthStoreOp = wgpu::StoreOp::Store;
             depthAttachment.depthClearValue = 1;
             wgpu::RenderPassDescriptor desc{};
             desc.colorAttachmentCount = 1;
@@ -819,8 +974,37 @@ void Renderer::render(const std::vector<Draw>& draws, V3 eye, V3 target, V3 shad
         },
         false);
     graph.pass(
-        "UI and resolve",
+        "smoke particles",
         {Access::read(sceneColor, Usage::ColorAttachment),
+         Access::write(particleColor, Usage::ColorAttachment),
+         Access::read(sceneDepth, Usage::DepthAttachment)},
+        [&] {
+            if (particleData.empty())
+                return;
+            wgpu::RenderPassColorAttachment color{};
+            color.view = msaaView;
+            color.loadOp = wgpu::LoadOp::Load;
+            color.storeOp = wgpu::StoreOp::Store;
+            wgpu::RenderPassDepthStencilAttachment depthAttachment{};
+            depthAttachment.view = depthView;
+            depthAttachment.depthLoadOp = wgpu::LoadOp::Load;
+            depthAttachment.depthStoreOp = wgpu::StoreOp::Store;
+            depthAttachment.depthClearValue = 1;
+            wgpu::RenderPassDescriptor desc{};
+            desc.colorAttachmentCount = 1;
+            desc.colorAttachments = &color;
+            desc.depthStencilAttachment = &depthAttachment;
+            auto pass = encoder.BeginRenderPass(&desc);
+            pass.SetPipeline(particlePipe);
+            pass.SetBindGroup(0, particleGlobalBG);
+            pass.SetVertexBuffer(0, particleVertices);
+            pass.Draw(6, uint32_t(particleData.size()));
+            pass.End();
+        },
+        false);
+    graph.pass(
+        "UI and resolve",
+        {Access::read(particleColor, Usage::ColorAttachment),
          Access::write(uiColor, Usage::ColorAttachment, false),
          Access::read(uiColor, Usage::ResolveSource),
          Access::write(uiDepth, Usage::DepthAttachment, false),
