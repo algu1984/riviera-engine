@@ -1,52 +1,109 @@
 # Riviera Engine
 
-Riviera Engine is the application-facing layer of a reusable C++20 runtime. The
-portable `riviera-engine-core` sibling owns math, ECS, fixed-step time, snapshots,
-generic transform hierarchy, and portable task scheduling. This repository owns the
-browser/WebGPU layer, renderer, frame graph, host executor, graphics-facing scene,
-UI, generic Jolt world service, and PCM AudioWorklet transport. Game simulation,
-car and wheel logic, audio synthesis, game assets, and collision policy remain with
-applications.
+**Riviera Engine is the application-facing C++20 engine built on top of
+[riviera-engine-core](https://github.com/algu1984/riviera-engine-core).**
+Core provides reusable ECS, jobs, simulation clocks, math, transforms, and
+cross-thread data exchanges. Engine connects those foundations to a browser
+runtime, rendering, scene management, physics, UI, and audio output.
 
-## Build and tests
+The architectural highlight is a **three-lane, shared-memory WebAssembly
+host**: browser/main, simulation, and rendering can each do their own work.
+The WebGPU renderer demo demonstrates demand-driven extraction, where the
+render loop does not have to wait for a new simulation packet.
 
-Run `make deps` once to initialize the pinned source submodules in this repository
-and its sibling core checkout. `make deps-check` verifies their recorded revisions
-and local patches without network access. Ordinary builds never fetch dependencies:
-`make build` builds `build/libriviera-engine.a` and separately builds the core archive
-in the sibling repository. The native Jolt archive is built into its cache directory by `make test`; build the
-WebAssembly archive explicitly when an application needs it.
-Set `CORE_ROOT`, `JOLT_ROOT`, `CGLTF_ROOT`, or `STB_ROOT` to use alternate
-checkouts. `make test` runs engine and core native checks, including the generic
-physics service smoke test. `make wasm-test` runs core's pthread-enabled portability
-tests under Node. The browser renderer uses Emscripten's Dawn WebGPU port and is
-integrated by a parent application. `make webgpu-renderer-demo` builds an isolated
-procedural workload page that uses the real engine renderer; serve it with
-`python3 examples/webgpu-renderer-demo/serve.py`. See [performance demo notes](docs/PERFORMANCE.md). To build Jolt independently, run
-`make build/jolt-native/libJolt.a` or `make build/jolt-wasm/libJolt.a`.
-The [live WebGPU demo](https://algu1984.github.io/riviera-engine/) and
-[Core benchmark results](https://algu1984.github.io/riviera-engine/benchmarks.html)
-are published through the manually dispatched `Build and publish WebGPU demo`
-Pages workflow; pushes and pull requests do not trigger it.
+## Browser architecture
+
+```text
+Main browser thread          Simulation pthread          Render pthread
+───────────────────          ──────────────────          ──────────────
+DOM / input events           Fixed-step clock             OffscreenCanvas
+Viewport / host calls        Simulation pump              WebGPU renderer
+Worker startup                  │                              │
+                               │    Shared WASM memory        │
+                               └──► RequestedExchange ◄───────┘
+                                  request / produce / acquire
+```
+
+The [web host](src/platform/web/host.cpp) creates two Emscripten
+`pthread` workers: one for simulation and one for rendering. Emscripten maps
+these to browser Web Workers that share the application's WebAssembly memory
+(`SharedArrayBuffer`); the render worker receives the canvas and runs WebGPU
+on an `OffscreenCanvas`. The main browser thread handles DOM-facing work,
+input, and viewport publication.
+
+This requires a **pthread-enabled WASM build** and a cross-origin-isolated
+browser context (COOP/COEP). Worker creation, platform loops, GPU access, and
+canvas ownership live in **Engine**, not Core.
+
+### How simulation overlaps rendering
+
+The [WebGPU renderer demo](examples/webgpu-renderer-demo/main.cpp) uses
+Core's `FixedStepClock` and a single shared
+`RequestedExchange<DrawBatch>` object:
+
+```text
+Simulation worker             Shared exchange           Render worker
+─────────────────             ───────────────           ─────────────
+Run fixed simulation ticks                               Request packet
+If requested:
+  fill reusable DrawBatch ─────► ready
+Run more fixed ticks                                      Acquire if ready
+                                                        Keep last packet if not
+                                                        Request next packet
+Run more fixed ticks                                    Render current packet
+```
+
+The demo's simulation loop advances fixed steps independently of the render
+callback. Extraction (`produce`) runs **only when requested**, rather than
+on every simulation tick. The renderer calls `acquire()` without blocking:
+if no new packet is ready, it retains the previous packet and keeps rendering.
+A two-slot reusable exchange provides data handoff without copying whole
+packets through JavaScript `postMessage`. This is a **demo of the integration
+pattern**, not a claim that every application or the engine's `Scene` uses
+this exchange automatically.
+
+The demo also measures frame cadence, CPU render time, simulation time,
+extraction counts, allocation growth, and **packet age** (time since extraction)
+to make synchronization and latency visible.
+
+## What Engine implements
+
+| Subsystem | Available functionality |
+| --- | --- |
+| **Browser host** | Main-thread browser services, input and viewport handling, two pthread workers, independent simulation/render scheduling, and OffscreenCanvas transfer ([`host.cpp`](src/platform/web/host.cpp)). |
+| **WebGPU renderer** | Forward rendering, shadows, sky, MSAA resolve, UI passes, material/mesh interfaces, and glTF geometry/material plus PNG/JPEG texture import ([`renderer.hpp`](include/engine/renderer.hpp)). |
+| **Frame graph** | Pass and resource-dependency validation, version tracking, dead-pass pruning, and compatible transient texture slot reuse ([`frame_graph.hpp`](include/engine/graphics/frame_graph/frame_graph.hpp)). |
+| **Scene** | Graphics-facing ECS entities, parent/child transforms, visibility, mesh instances, and caller-owned draw extraction ([`scene.hpp`](include/engine/scene/scene.hpp)). |
+| **Jobs executor** | Engine-facing executor built on Core's general task scheduler, with optional host-provided worker execution ([`executor.hpp`](include/engine/jobs/executor.hpp)). |
+| **Physics service** | Single-owner Jolt `PhysicsWorld` wrapper with physics system, temporary allocator, and Jolt job system; applications own collision policy, bodies, and gameplay rules ([`physics_world.hpp`](include/engine/physics/physics_world.hpp)). |
+| **UI and audio** | Reusable C++ canvas/layout UI and browser AudioWorklet PCM transport ([`canvas.hpp`](include/engine/ui/canvas.hpp), [`engine-worklet.js`](web/engine-worklet.js)). |
+
+**Core versus Engine:** Core owns the ECS data model and scheduling,
+fixed-step clock, generic task graph, math, hierarchy algorithm, and
+`RequestedExchange`/`SnapshotExchange` primitives. Engine owns the Web
+worker setup, renderer, graphics scene integration, WebGPU frame graph,
+physics adapter, and browser services. Applications own gameplay-specific
+simulation, cars and tires, assets, collision rules, and audio synthesis.
+
+**Current limits:** the browser host exists, but a native host and an editor
+are not provided. The renderer uses WebGPU's implicit transitions rather
+than an explicit backend barrier layer; GPU-driven culling, indirect drawing,
+and mesh shaders are not implemented. The `Scene` exposes ECS storage, but
+not every game subsystem is necessarily migrated to the ECS system scheduler.
+See [current implementation status](docs/ENGINE_STATUS.md) for the precise scope.
+
+## Demo and documentation
+
+Explore the [live WebGPU demo](https://algu1984.github.io/riviera-engine/)
+or see the [performance measurements](docs/PERFORMANCE.md).
+For commands and setup requirements, see **[Build and tests](docs/BUILD.md)**.
+For design rationale, see [Engine design](docs/ENGINE_DESIGN.md),
+[Engine status](docs/ENGINE_STATUS.md), and
+[dependency pins and patches](dependencies/README.md).
 
 ## License
 
-Riviera Engine source code is released under the MIT License; see [LICENSE](LICENSE).
-Third-party dependencies retain their own licenses and notices. The published
-demo includes the relevant cgltf and stb license files under `licenses/`.
-
-The UI test uses local font fixtures in `tests/assets/fonts`, with each font's OFL notice alongside it.
-
-## Parent build integration
-
-Set `ENGINE_ROOT` and include `$(ENGINE_ROOT)/engine.mk`. The file includes the
-sibling `core.mk` by default and exports absolute `ENGINE_SOURCES`, `ENGINE_HEADERS`,
-`ENGINE_INCLUDE_FLAGS`, `CORE_SOURCES`, and `CORE_HEADERS`. Compile both source lists
-once into an application binary, or link the separately built core and engine
-archives with Jolt where needed. It also exports `ENGINE_JOLT_HEADERS` and
-`ENGINE_WEB_AUDIO_WORKLET` for the generic PCM output processor. Jolt initialization
-is an explicit host-startup call; each physics world is single-owner.
-
-See [design](docs/ENGINE_DESIGN.md), [current status](docs/ENGINE_STATUS.md), and
-[dependency pins and patches](dependencies/README.md). Third-party licenses and
-notices are retained under `third_party/`.
+Riviera Engine's authored code is released under the [MIT License](LICENSE).
+Third-party dependencies retain their own licenses and notices (including
+the demo's cgltf/stb licenses). UI test font fixtures retain their own OFL
+notices under `tests/assets/fonts`.
