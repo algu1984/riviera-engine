@@ -19,3 +19,11 @@ ENGINE_STB_HEADERS := $(STB_ROOT)/stb_image.h $(STB_ROOT)/stb_truetype.h
 ENGINE_JOLT_CPPFLAGS := -DJPH_OBJECT_STREAM -DNDEBUG
 ENGINE_CORE_ARCHIVE := $(CORE_ROOT)/build/libriviera-engine-core.a
 ENGINE_WEB_AUDIO_WORKLET := $(ENGINE_ROOT)/web/engine-worklet.js
+# Use the same pthread setting when compiling the application and every
+# WebAssembly static library that contributes to its shared-memory module.
+ENGINE_WEB_THREAD_CPPFLAGS := -pthread
+ENGINE_WEB_THREAD_LDFLAGS := -pthread -sOFFSCREENCANVAS_SUPPORT=1 \
+  -sPTHREAD_POOL_SIZE=2 --use-port=emdawnwebgpu
+ENGINE_WEB_COMPILE_FLAGS := $(ENGINE_WEB_THREAD_CPPFLAGS)
+ENGINE_WEB_LINK_FLAGS := $(ENGINE_WEB_THREAD_LDFLAGS)
+ENGINE_JOLT_WASM_PTHREAD_ARCHIVE := $(ENGINE_ROOT)/build/jolt-wasm-pthread/libJolt.a

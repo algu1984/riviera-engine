@@ -48,10 +48,23 @@ execution, graphics surfaces, and audio output. The application interprets event
 and chooses runtime policy. Platform-specific behavior stays behind the engine
 boundary so that it does not enter core storage or scheduling algorithms.
 
-The current host is the browser. C++ owns reusable runtime behavior; JavaScript
-connects it to browser facilities that require JavaScript. A native host is a
-separate adapter with the same responsibility, not a reason to embed browser
-concepts into the core. Native graphics and mobile hosts remain future work.
+The current host is the browser. Its main thread owns DOM input, viewport
+measurement, browser storage and other privileged browser calls. A render pthread
+owns WebGPU, the transferred OffscreenCanvas, and its requestAnimationFrame loop.
+A second pthread owns simulation initialization and its timer-driven pump. Both
+workers share the C++ WebAssembly memory with the main thread; bounded queues and
+published snapshots carry data across owners. JavaScript connects the C++ host to
+browser facilities that require JavaScript. Native graphics and mobile hosts
+remain future work.
+
+Browser input enters a fixed-capacity single-producer/single-consumer queue for
+render-side UI. A separate optional main-thread observer lets applications publish
+physical driving input directly to simulation-owned atomic state, independent of
+render queue latency. If the UI queue fills, its next drain discards stale events
+and emits `FocusLost`; the observer receives that reset immediately. Viewport
+measurements are published as an atomic snapshot, and the render owner resizes its
+OffscreenCanvas. Cross-thread browser services use asynchronous main-thread
+dispatch; synchronous storage reads are intended for startup before worker launch.
 
 WebGPU is the selected graphics API. Device and surface lifecycle belong to the
 renderer and host. Asynchronous device initialization, resizing, and recovery
@@ -61,10 +74,10 @@ to graphics objects is not implied by a parallel task scheduler.
 
 ## Execution and data flow
 
-CPU work follows the core task graph rather than a fixed assignment of all work
-to a main loop and a render thread. The engine provides workers and platform
-execution policy. Task dependencies express when results become available;
-worker count is chosen from useful parallel work and the host's resources.
+CPU work follows the core task graph rather than assigning all work to one loop.
+In the browser, the host reserves a render owner and a simulation owner alongside
+the responsive main browser thread. Other CPU work can use the core task graph;
+task dependencies express when results become available.
 
 Simulation, presentation, and audio have different cadences. Simulation advances
 in fixed steps. Presentation consumes published state when a frame is requested.
@@ -81,7 +94,8 @@ flowchart LR
     Publish --> Prepare["Presentation preparation"]
     Prepare --> Graph["GPU frame graph"]
     Graph --> Screen["Display"]
-    Publish --> Sound["Application audio producer"]
+    Sim --> Sound["Application audio producer"]
+    Prepare -. "requests latest state" .-> Publish
     Sound --> PCM["PCM transport"]
     PCM --> Device["Audio device"]
     AppUI["Application UI state"] --> UI["UI layout and paint"]
@@ -90,10 +104,12 @@ flowchart LR
 
 This is an architectural data-flow model, not a mandatory graph assembled by the
 engine for every application. The application chooses captured state, task
-ordering, and the input used by its audio producer. A subsystem may run serially
-where ordering or its underlying library requires it. The current race game still
-uses serial preparation and physics execution; providing a worker host does not
-mean that all of its work has already been parallelized.
+ordering, and the input used by its audio producer. In the browser, the main
+thread publishes input events and viewport snapshots; the simulation pump decides
+fixed-step policy from elapsed time, and the render loop consumes the latest
+presentation state when a display frame is requested. Timer cadence is a wakeup
+policy, not a simulation timestep. A subsystem may run serially where ordering or
+its underlying library requires it.
 
 CPU task dependencies and GPU pass dependencies are distinct. CPU tasks prepare
 results; the frame graph arranges work on the graphics device. One graph does not
@@ -164,9 +180,10 @@ authoritative.
 ## UI and audio
 
 UI composition is a C++ service that transforms application state into layout,
-hit-test information, and paint data. It uses the renderer for output and the host
-for input. Application screens, text, styling, and interaction policy remain
-application data. Browser DOM layout is not the authority for engine UI.
+hit-test information, and paint data. It uses the renderer for output and consumes
+events relayed from the main-thread host. Application screens, text, styling, and
+interaction policy remain application data. Browser DOM layout is not the
+authority for engine UI.
 
 Audio output accepts prepared PCM and delivers it to the device with bounded
 buffering and observable underruns. The device callback must not depend on the
@@ -175,8 +192,10 @@ selection are producer responsibilities. A vehicle sound simulator is applicatio
 behavior, not a dependency of the reusable engine or core.
 
 The browser adapter connects the producer to an AudioWorklet for PCM output.
-Other platforms would supply their own device adapter. Changes to the output
-adapter should not require rewriting synthesis or making it depend on JavaScript.
+Operations requiring a transient user activation, such as resuming audio, must be
+performed by a main-thread gesture callback. Other platforms would supply their
+own device adapter. Changes to the output adapter should not require rewriting
+synthesis or making it depend on JavaScript.
 
 ## Assets and resource ownership
 

@@ -19,8 +19,21 @@ struct Event {
 double seconds();
 Viewport viewport();
 void resizeCanvas(int width, int height);
-void installInput(const std::vector<int>& handledKeys);
-std::vector<Event> drainEvents();
+// The observer runs synchronously on the browser main thread before the event is
+// queued for render-side UI consumption.
+void installInput(const std::vector<int>& handledKeys, void (*observer)(const Event&) = nullptr);
+// Reuses the caller's vector capacity. Queue overflow discards stale input and
+// reports FocusLost so consumers can clear held state.
+void drainEvents(std::vector<Event>& events);
+// Launches the render and simulation owners without waiting for their startup
+// callbacks to finish. The render owner receives the #game OffscreenCanvas.
+bool startWorkers(void (*renderStart)(), void (*simulationStart)());
+// These enter an Emscripten event loop on the calling owner and do not return.
+void runRender(void (*frame)());
+void runSimulation(void (*pump)(), int intervalMs = 2);
+bool isMainThread();
+// Worker calls are asynchronous. userData must remain valid until callback runs.
+void dispatchMain(void (*callback)(void*), void* userData);
 void run(void (*frame)());
 double loadNumber(const char* key);
 void saveNumber(const char* key, double value);

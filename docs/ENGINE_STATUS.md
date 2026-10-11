@@ -10,8 +10,12 @@ Core behavior and guarantees are described in the
 
 This repository currently provides:
 
-- A browser host for frame callbacks, viewport and canvas sizing, input events,
-  simple numeric local storage, and WebGPU surface creation.
+- A three-lane browser host: the main thread owns DOM callbacks, viewport reads,
+  and privileged services; a render pthread owns WebGPU and an OffscreenCanvas;
+  a separate simulation pthread owns its timer-driven pump. Input uses a bounded
+  render queue with FocusLost overflow recovery and an optional immediate
+  main-thread observer for simulation-owned physical input. Viewport state is
+  atomically published to workers.
 - A WebGPU renderer with a forward scene path, shadows, sky, MSAA resolve and UI
   passes, plus direct glTF geometry/material and PNG/JPEG texture import. Public
   renderer material and mesh interfaces still expose raw WebGPU handles.
@@ -50,8 +54,22 @@ the generic physics smoke test, and the sibling core native suite. The engine te
 cover executor integration, frame-graph validation, scene extraction, UI behavior,
 and a Jolt world step. `make wasm-test` delegates core portability checks to
 pthread-enabled WebAssembly under Node; it does not validate the browser renderer or
-full application deployment. The browser renderer uses Emscripten's Dawn WebGPU port
-and is integrated by a parent application.
+full application deployment. Browser applications use `ENGINE_WEB_THREAD_CPPFLAGS`
+and `ENGINE_WEB_THREAD_LDFLAGS` from `engine.mk` for a shared-memory Pthreads build,
+OffscreenCanvas transfer, a two-worker startup pool, and Emscripten's Dawn WebGPU
+port. The page must be cross-origin isolated (COOP same-origin and COEP
+require-corp) for SharedArrayBuffer. All linked C++ static libraries, including
+Jolt, must be compiled with the same `-pthread` setting; `make jolt-wasm-pthread`
+produces the matching Jolt archive.
+
+`make web-worker-probe` builds an optional browser page that exercises the host's
+real worker launch, worker-side WebGPU adapter/device creation, surface setup and
+surface-texture acquisition, plus independent render and simulation pacing. Serve
+the generated page over an isolated origin with WebGPU enabled. It is separate from
+the native test suite and does not test game behavior. With Emscripten 6.0.10 and
+headless Chromium on October 11, 2026, the probe verified both callbacks running
+off the main thread, a configured OffscreenCanvas WebGPU surface, and independent
+render/simulation counters.
 
 The renderer currently uses WebGPU implicit resource transitions and has no explicit
 backend barrier layer. GPU-driven culling, indirect drawing, GPU LOD, bindless-style

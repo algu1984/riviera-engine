@@ -46,7 +46,7 @@ JOLT_FLAGS := -G Ninja -DCMAKE_BUILD_TYPE=Distribution -DTARGET_UNIT_TESTS=OFF \
   -DINTERPROCEDURAL_OPTIMIZATION=OFF -DENABLE_ALL_WARNINGS=OFF -DJPH_USE_DX12=OFF \
   -DJPH_USE_VK=OFF -DJPH_USE_MTL=OFF -DJPH_USE_CPU_COMPUTE=OFF
 
-.PHONY: all build test deps deps-check require-dependencies engine-test scene-test ecs-integration-test ui-test particle-test physics-world-test core-test \
+.PHONY: all build test deps deps-check require-dependencies engine-test scene-test ecs-integration-test ui-test particle-test physics-world-test core-test jolt-wasm-pthread web-worker-probe \
   ecs-test runtime-test hierarchy-test jobs-test xenium-portability-test wasm-test ecs-wasm-test \
   clean format format-check
 
@@ -115,6 +115,21 @@ particle-test: build/particle-test
 build/jolt-wasm/libJolt.a: $(ENGINE_JOLT_FILES) $(ENGINE_DEPENDENCIES_MANIFEST) Makefile engine.mk | require-dependencies
 	emcmake cmake -S $(JOLT_ROOT)/Build -B build/jolt-wasm $(JOLT_FLAGS)
 	cmake --build build/jolt-wasm --target Jolt -j 6
+build/jolt-wasm-pthread/libJolt.a: $(ENGINE_JOLT_FILES) $(ENGINE_DEPENDENCIES_MANIFEST) Makefile engine.mk | require-dependencies
+	emcmake cmake -S $(JOLT_ROOT)/Build -B build/jolt-wasm-pthread $(JOLT_FLAGS) \
+	  -DCMAKE_C_FLAGS=-pthread -DCMAKE_CXX_FLAGS=-pthread
+	cmake --build build/jolt-wasm-pthread --target Jolt -j 6
+jolt-wasm-pthread: build/jolt-wasm-pthread/libJolt.a
+build/web-worker-probe.html: tests/web_worker_probe.cpp tests/web_worker_probe_shell.html \
+	$(ENGINE_ROOT)/src/platform/web/host.cpp $(ENGINE_ROOT)/src/platform/web/gpu_surface.cpp \
+	$(ENGINE_HEADERS) engine.mk Makefile
+	mkdir -p build
+	$(EMXX) -std=c++20 -O1 -Wall -Wextra $(ENGINE_WEB_THREAD_CPPFLAGS) \
+	  $(ENGINE_WEB_THREAD_LDFLAGS) -sASSERTIONS=1 $(ENGINE_INCLUDE_FLAGS) \
+	  tests/web_worker_probe.cpp $(ENGINE_ROOT)/src/platform/web/host.cpp \
+	  $(ENGINE_ROOT)/src/platform/web/gpu_surface.cpp \
+	  --shell-file tests/web_worker_probe_shell.html -o $@
+web-worker-probe: build/web-worker-probe.html
 build/jolt-native/libJolt.a: $(ENGINE_JOLT_FILES) $(ENGINE_DEPENDENCIES_MANIFEST) Makefile engine.mk | require-dependencies
 	cmake -S $(JOLT_ROOT)/Build -B build/jolt-native $(JOLT_FLAGS)
 	cmake --build build/jolt-native --target Jolt -j 6
