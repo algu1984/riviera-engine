@@ -24,11 +24,12 @@ This repository currently provides:
   texture lifetimes to logical slots. WebGPU provides implicit transitions; the
   engine does not implement explicit Vulkan-style barriers or native memory aliasing.
 - An executor that delegates task scheduling to core and supplies optional native
-  host workers. WebAssembly workers require a pthread-enabled build; the no-pthread
-  build stays serial. The executor exposes its owned core job scheduler so
-  `SystemScheduler` can submit to the same worker pool without creating another
-  one. The current race application keeps its scene preparation in the existing
-  task graph and uses a serial executor with Jolt's single-threaded job system.
+  host workers. In pthread-enabled browser builds, its default helper count follows
+  the reported browser CPU count after reserving render and simulation owners; zero
+  or absent reports use eight. The simulation owner also helps execute ready work.
+  The executor exposes its shared scheduler and the number of successfully started
+  helpers and helper-completed tasks, so ECS systems, their partitions, prepared
+  graphs, and physics jobs can share one pool. The no-pthread build stays serial.
 - A graphics-facing `Scene` that stores its rendering components in one core ECS
   world and extracts caller-owned draw records. Core owns dense ECS storage, signature-based system scheduling, structural
   command application, and generic transform hierarchy algorithms. Scene methods
@@ -56,7 +57,7 @@ and a Jolt world step. `make wasm-test` delegates core portability checks to
 pthread-enabled WebAssembly under Node; it does not validate the browser renderer or
 full application deployment. Browser applications use `ENGINE_WEB_THREAD_CPPFLAGS`
 and `ENGINE_WEB_THREAD_LDFLAGS` from `engine.mk` for a shared-memory Pthreads build,
-OffscreenCanvas transfer, a two-worker startup pool, and Emscripten's Dawn WebGPU
+OffscreenCanvas transfer, a browser-sized prewarmed pthread pool, and Emscripten's Dawn WebGPU
 port. The page must be cross-origin isolated (COOP same-origin and COEP
 require-corp) for SharedArrayBuffer. `make webgpu-renderer-demo` builds an isolated
 procedural renderer workload page using the existing `Renderer`; its localhost-only

@@ -1,4 +1,5 @@
 #include "engine/graphics/frame_graph/frame_graph.hpp"
+#include "engine/jobs/browser_thread_budget.hpp"
 #include "engine/jobs/executor.hpp"
 #include "engine/math.hpp"
 #include "engine/runtime/fixed_step_clock.hpp"
@@ -18,6 +19,15 @@ static void require(bool ok, const char* message) {
 }
 static void tasks() {
     using namespace engine::jobs;
+    const auto oneThread = browserThreadBudget(1);
+    const auto twoThreads = browserThreadBudget(2);
+    const auto fallback = browserThreadBudget(0);
+    require(oneThread.hardwareThreads == 1 && oneThread.computeWorkers == 0,
+            "one browser CPU leaves no compute helpers");
+    require(twoThreads.hardwareThreads == 2 && twoThreads.computeWorkers == 0,
+            "two browser CPUs reserve render and simulation");
+    require(fallback.hardwareThreads == 8 && fallback.computeWorkers == 6,
+            "missing browser CPU report uses eight threads");
     {
         Executor cooperative;
         std::atomic<int> state{0};
@@ -44,6 +54,9 @@ static void tasks() {
     }
     {
         Executor pool(3);
+        require(pool.requestedWorkerCount() == 3 && pool.workerCount() == 3 &&
+                    !pool.workerStartupFailed(),
+                "executor reports requested and successfully started helpers");
         constexpr int producerCount = 4;
         constexpr int graphsPerProducer = 24;
         std::atomic<int> calls{0};
@@ -136,7 +149,10 @@ static void tasks() {
     Executor pool(2);
     TaskGraph concurrent;
     std::atomic<int> entered{0};
+    std::atomic<bool> helperRanTask{false};
     auto both = [&] {
+        if (pool.isHelperThread())
+            helperRanTask.store(true, std::memory_order_relaxed);
         entered.fetch_add(1, std::memory_order_release);
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
         while (entered.load(std::memory_order_acquire) != 2 &&
@@ -148,6 +164,9 @@ static void tasks() {
     concurrent.add("parallel B", both);
     require(pool.run(concurrent).success && entered.load(std::memory_order_relaxed) == 2,
             "independent tasks actually use two workers");
+    require(pool.workerCompletedCount() > 0, "executor reports jobs completed by its helpers");
+    require(helperRanTask.load(std::memory_order_relaxed),
+            "executor identifies tasks running on its helper threads");
 }
 static void clocks() {
     using namespace engine::runtime;

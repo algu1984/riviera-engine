@@ -17,8 +17,14 @@ struct Velocity {
 struct Summary {
     int value = 0;
 };
+struct IndependentA {
+    int value = 0;
+};
+struct IndependentB {
+    int value = 0;
+};
 
-using World = engine::ecs::World<Position, Velocity, Summary>;
+using World = engine::ecs::World<Position, Velocity, Summary, IndependentA, IndependentB>;
 
 static void require(bool ok, const char* message) {
     if (!ok) {
@@ -43,6 +49,11 @@ int main() {
     const auto summaryEntity = world.create();
     require(summaryEntity && world.emplace<Summary>(summaryEntity),
             "summary component is available to ordinary systems");
+    const auto independentAEntity = world.create();
+    const auto independentBEntity = world.create();
+    require(independentAEntity && world.emplace<IndependentA>(independentAEntity) &&
+                independentBEntity && world.emplace<IndependentB>(independentBEntity),
+            "independent whole-system components are available");
 
     jobs::Executor executor(2);
     require(executor.workerCount() == 2, "executor owns the requested host workers");
@@ -52,6 +63,18 @@ int main() {
     std::atomic<bool> usedHostWorker{false};
     const auto callerThread = std::this_thread::get_id();
     int observedSum = 0;
+
+    std::atomic<int> activeIndependentSystems{0};
+    std::atomic<int> maximumIndependentSystems{0};
+    const auto recordIndependentSystem = [&] {
+        const int active = activeIndependentSystems.fetch_add(1, std::memory_order_relaxed) + 1;
+        int maximum = maximumIndependentSystems.load(std::memory_order_relaxed);
+        while (maximum < active && !maximumIndependentSystems.compare_exchange_weak(
+                                       maximum, active, std::memory_order_relaxed)) {
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(3));
+        activeIndependentSystems.fetch_sub(1, std::memory_order_relaxed);
+    };
 
     const auto update = systems.add_parallel<Position>(
         "parallel update", 4,
@@ -84,12 +107,26 @@ int main() {
         require(result != nullptr, "read access observes the summary entity");
         observedSum = result->value;
     });
+    systems.add("independent whole system A", [&](ecs::Write<IndependentA> values) {
+        auto* value = values.get(independentAEntity);
+        require(value != nullptr, "first independent system finds its component");
+        ++value->value;
+        recordIndependentSystem();
+    });
+    systems.add("independent whole system B", [&](ecs::Write<IndependentB> values) {
+        auto* value = values.get(independentBEntity);
+        require(value != nullptr, "second independent system finds its component");
+        ++value->value;
+        recordIndependentSystem();
+    });
 
     const auto result = systems.run(world, executor.scheduler());
     require(result.success,
             result.error.empty() ? "systems execute on the engine executor" : result.error.c_str());
     require(maximumRanges.load(std::memory_order_relaxed) > 1,
             "range jobs overlap on the executor worker pool");
+    require(maximumIndependentSystems.load(std::memory_order_relaxed) == 2,
+            "independent whole ECS systems overlap on the shared executor");
     require(usedHostWorker.load(std::memory_order_relaxed),
             "range jobs execute on a host worker owned by Executor");
     require(observedSum == expectedSum, "inferred read/write systems observe completed ranges");

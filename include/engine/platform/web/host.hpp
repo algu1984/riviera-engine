@@ -32,6 +32,10 @@ bool startWorkers(void (*renderStart)(), void (*simulationStart)());
 void runRender(void (*frame)());
 void runSimulation(void (*pump)(), int intervalMs = 2);
 bool isMainThread();
+// Reports the browser's positive hardwareConcurrency value, or 8 when absent.
+unsigned hardwareThreadCount();
+// Browser compute helpers after reserving render and simulation owners.
+unsigned computeWorkerCount();
 // Worker calls are asynchronous. userData must remain valid until callback runs.
 void dispatchMain(void (*callback)(void*), void* userData);
 void run(void (*frame)());

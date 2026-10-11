@@ -7,8 +7,14 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 
 #include <cstddef>
+#include <memory>
+
+namespace engine::jobs {
+class Executor;
+}
 
 namespace engine::physics {
+class SchedulerJobSystem;
 
 // Call once on the host thread before creating worlds or worker threads.
 // This installs Jolt's allocator, factory, types, and optional trace callback.
@@ -21,10 +27,16 @@ struct PhysicsWorldSettings {
     JPH::uint maxBodyPairs = 1024;
     JPH::uint maxContactConstraints = 1024;
     std::size_t temporaryAllocatorBytes = 4 * 1024 * 1024;
+    // Zero uses Jolt's default maximum.
     JPH::uint maxJobs = JPH::cMaxPhysicsJobs;
+    // Borrowed. When supplied, Jolt jobs share this executor's scheduler.
+    // The executor must outlive the world.
+    engine::jobs::Executor* executor = nullptr;
 };
 
-// Owns the reusable Jolt world, temporary allocator, and serial job system.
+// Owns the reusable Jolt world, temporary allocator, and job system. Without
+// an executor it uses Jolt's serial job system; with one it shares the engine
+// scheduler. The executor must outlive the world.
 // The supplied layer interfaces must outlive this object. A world has one
 // owner: call step and mutate its bodies on that owner only. Independent worlds
 // may be stepped concurrently by the application scheduler.
@@ -33,6 +45,7 @@ class PhysicsWorld {
     PhysicsWorld(const JPH::BroadPhaseLayerInterface& layers,
                  const JPH::ObjectVsBroadPhaseLayerFilter& broadPhaseFilter,
                  const JPH::ObjectLayerPairFilter& pairFilter, PhysicsWorldSettings settings = {});
+    ~PhysicsWorld();
     PhysicsWorld(const PhysicsWorld&) = delete;
     PhysicsWorld& operator=(const PhysicsWorld&) = delete;
 
@@ -50,6 +63,7 @@ class PhysicsWorld {
   private:
     JPH::TempAllocatorImpl temporaryAllocator_;
     JPH::JobSystemSingleThreaded jobs_;
+    std::unique_ptr<SchedulerJobSystem> schedulerJobs_;
     JPH::PhysicsSystem system_;
 };
 

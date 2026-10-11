@@ -6,24 +6,52 @@ Core provides reusable ECS, jobs, simulation clocks, math, transforms, and
 cross-thread data exchanges. Engine connects those foundations to a browser
 runtime, rendering, scene management, physics, UI, and audio output.
 
-The architectural highlight is a **three-lane, shared-memory WebAssembly
-host**: browser/main, simulation, and rendering can each do their own work.
-The WebGPU renderer demo demonstrates demand-driven extraction, where the
-render loop does not have to wait for a new simulation packet.
+The architectural highlight is a **shared-memory WebAssembly host** with
+browser/main, simulation, rendering, and a cooperative CPU compute pool.
+Simulation and render owners can help execute ready compute work while helpers
+drain one shared queue. The WebGPU renderer demo demonstrates demand-driven
+extraction, where the render loop does not have to wait for a new simulation
+packet.
 
 ## Browser architecture
 
 ```mermaid
-flowchart LR
-    Browser["Browser / Main thread"]
-    Sim["Simulation worker"]
-    Render["Render worker"]
-    Shared[("Shared WASM memory<br/>RequestedExchange")]
-    Browser --> Sim
-    Browser --> Render
-    Sim <--> Shared
-    Render <--> Shared
+flowchart TB
+    Main["Browser main: DOM input and browser services"]
+    Sim["Simulation worker: mutable world, fixed-step updates"]
+    Render["Render worker: requestAnimationFrame, OffscreenCanvas, WebGPU"]
+    Exchange["Requested exchange: immutable snapshots"]
+    Queue["One Engine executor: lock-free ready queue"]
+    Helpers["Helpers: max(H - 2, 0); H defaults to 8"]
+    Systems["Independent systems and partitioned ranges"]
+    Jolt["Ready Jolt jobs"]
+    Prep["CPU scene/UI preparation jobs"]
+    GPU["GPU frame graph"]
+    Display["Display"]
+    Main --> Sim
+    Main --> Render
+    Sim --> Exchange
+    Render -. "requests latest snapshot; no next-tick wait" .-> Exchange
+    Exchange --> Render
+    Systems --> Queue
+    Jolt --> Queue
+    Prep --> Queue
+    Queue --> Helpers
+    Sim -. "submits simulation work and helps execute ready jobs" .-> Queue
+    Render -. "submits CPU prep and helps while joining" .-> Queue
+    Helpers -. "completes jobs; unlocks dependents" .-> Queue
+    Queue -. "simulation results ready" .-> Sim
+    Queue -. "prep complete before GPU use" .-> Render
+    Render --> GPU --> Display
 ```
+
+The browser helper count is `max(H - 2, 0)`, where `H` is a positive
+`navigator.hardwareConcurrency` value or eight otherwise. The simulation owner
+also helps execute ready work, and the render owner can help while joining CPU
+preparation. Jolt's ready jobs can use this scheduler when an application
+supplies it; native worlds without a shared executor keep Jolt's serial job
+system. Audio generated in an application worker stays outside this compute
+helper budget, while Engine provides generic PCM output.
 
 The [web host](src/platform/web/host.cpp) creates two Emscripten
 `pthread` workers: one for simulation and one for rendering. Emscripten maps
@@ -75,12 +103,12 @@ to make synchronization and latency visible.
 
 | Subsystem | Available functionality |
 | --- | --- |
-| **Browser host** | Main-thread browser services, input and viewport handling, two pthread workers, independent simulation/render scheduling, and OffscreenCanvas transfer ([`host.cpp`](src/platform/web/host.cpp)). |
+| **Browser host** | Main-thread browser services, input and viewport handling, two pthread workers, independent simulation/render scheduling, shared compute helpers, and OffscreenCanvas transfer ([`host.cpp`](src/platform/web/host.cpp)). |
 | **WebGPU renderer** | Forward rendering, shadows, sky, MSAA resolve, UI passes, material/mesh interfaces, and glTF geometry/material plus PNG/JPEG texture import ([`renderer.hpp`](include/engine/renderer.hpp)). |
 | **Frame graph** | Pass and resource-dependency validation, version tracking, dead-pass pruning, and compatible transient texture slot reuse ([`frame_graph.hpp`](include/engine/graphics/frame_graph/frame_graph.hpp)). |
 | **Scene** | Graphics-facing ECS entities, parent/child transforms, visibility, mesh instances, and caller-owned draw extraction ([`scene.hpp`](include/engine/scene/scene.hpp)). |
-| **Jobs executor** | Engine-facing executor built on Core's general task scheduler, with optional host-provided worker execution ([`executor.hpp`](include/engine/jobs/executor.hpp)). |
-| **Physics service** | Single-owner Jolt `PhysicsWorld` wrapper with physics system, temporary allocator, and Jolt job system; applications own collision policy, bodies, and gameplay rules ([`physics_world.hpp`](include/engine/physics/physics_world.hpp)). |
+| **Jobs executor** | Engine-facing executor built on Core's task scheduler, with one pool for independent ECS systems, partitioned ranges, CPU preparation, and optional host-provided workers ([`executor.hpp`](include/engine/jobs/executor.hpp)). |
+| **Physics service** | Single-owner Jolt `PhysicsWorld` wrapper with physics system, temporary allocator, and Jolt jobs that can share the Engine scheduler; applications own collision policy, bodies, and gameplay rules ([`physics_world.hpp`](include/engine/physics/physics_world.hpp)). |
 | **UI and audio** | Reusable C++ canvas/layout UI and browser AudioWorklet PCM transport ([`canvas.hpp`](include/engine/ui/canvas.hpp), [`engine-worklet.js`](web/engine-worklet.js)). |
 
 **Core versus Engine:** Core owns the ECS data model and scheduling,

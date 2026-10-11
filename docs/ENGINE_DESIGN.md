@@ -51,11 +51,12 @@ boundary so that it does not enter core storage or scheduling algorithms.
 The current host is the browser. Its main thread owns DOM input, viewport
 measurement, browser storage and other privileged browser calls. A render pthread
 owns WebGPU, the transferred OffscreenCanvas, and its requestAnimationFrame loop.
-A second pthread owns simulation initialization and its timer-driven pump. Both
-workers share the C++ WebAssembly memory with the main thread; bounded queues and
-published snapshots carry data across owners. JavaScript connects the C++ host to
-browser facilities that require JavaScript. Native graphics and mobile hosts
-remain future work.
+A second pthread owns simulation initialization and its fixed-step pump. Both
+workers and the main thread share C++ WebAssembly memory. The single Engine
+executor adds CPU helpers to the render and simulation owners; bounded queues and
+requested immutable snapshots carry data across owners. JavaScript connects the
+C++ host to browser facilities that require JavaScript. Native graphics and mobile
+hosts remain future work.
 
 Browser input enters a fixed-capacity single-producer/single-consumer queue for
 render-side UI. A separate optional main-thread observer lets applications publish
@@ -75,9 +76,13 @@ to graphics objects is not implied by a parallel task scheduler.
 ## Execution and data flow
 
 CPU work follows the core task graph rather than assigning all work to one loop.
-In the browser, the host reserves a render owner and a simulation owner alongside
-the responsive main browser thread. Other CPU work can use the core task graph;
-task dependencies express when results become available.
+In the browser, the host reserves one render owner and one simulation owner
+alongside the responsive main browser thread. It budgets additional Engine executor
+helpers from `navigator.hardwareConcurrency`, using eight when the report is absent
+or zero. The simulation owner also helps execute ready jobs, including independent
+ECS systems and their partitioned work, through the same scheduler. The count excludes
+the mostly idle browser main thread and represents the full browser thread budget.
+Task dependencies express when results become available.
 
 Simulation, presentation, and audio have different cadences. Simulation advances
 in fixed steps. Presentation consumes published state when a frame is requested.
@@ -86,26 +91,52 @@ boundaries keep a delayed frame from redefining the simulation step or interrupt
 audio generation.
 
 ```mermaid
-flowchart LR
-    Host["Host inputs and timing"] --> Sim["Application simulation tasks"]
-    Sim --> Physics["Physics step"]
-    Physics --> Sim
-    Sim --> Publish["Immutable state publication"]
-    Publish --> Prepare["Presentation preparation"]
-    Prepare --> Graph["GPU frame graph"]
-    Graph --> Screen["Display"]
-    Sim --> Sound["Application audio producer"]
-    Prepare -. "requests latest state" .-> Publish
-    Sound --> PCM["PCM transport"]
-    PCM --> Device["Audio device"]
-    AppUI["Application UI state"] --> UI["UI layout and paint"]
-    UI --> Graph
+flowchart TB
+    Main["Browser main: DOM input and browser services"]
+    Sim["Simulation owner: mutable world, fixed-step updates"]
+    Render["Render owner: requestAnimationFrame, OffscreenCanvas, WebGPU"]
+    Exchange["Requested exchange: immutable persistent snapshots"]
+    Queue["One Engine executor: lock-free ready queue"]
+    Helpers["CPU helpers: max(H - 2, 0); H defaults to 8"]
+    Systems["Independent systems and partitioned ranges"]
+    Jolt["Ready Jolt jobs"]
+    Prep["CPU scene/UI preparation jobs"]
+    App["Application behavior and UI state"]
+    AudioWorker["Optional application audio worker"]
+    PCM["Engine PCM output"]
+    Device["AudioWorklet / device"]
+    GPU["GPU frame graph"]
+    Display["Display"]
+    Main --> Sim
+    Main --> Render
+    Sim --> Exchange
+    Render -. "requests latest snapshot; no next-tick wait" .-> Exchange
+    Exchange --> Render
+    App --> Systems
+    App --> Prep
+    Systems --> Queue
+    Jolt --> Queue
+    Prep --> Queue
+    Queue --> Helpers
+    Sim -. "submits simulation work and helps execute ready jobs" .-> Queue
+    Render -. "submits CPU prep and helps while joining" .-> Queue
+    Helpers -. "completes jobs; unlocks dependents" .-> Queue
+    Queue -. "simulation results ready" .-> Sim
+    Queue -. "prep complete before GPU use" .-> Render
+    App -. "optional synthesis" .-> AudioWorker
+    AudioWorker --> PCM --> Device
+    Render --> GPU
+    GPU --> Display
 ```
 
-This is an architectural data-flow model, not a mandatory graph assembled by the
-engine for every application. The application chooses captured state, task
-ordering, and the input used by its audio producer. In the browser, the main
-thread publishes input events and viewport snapshots; the simulation pump decides
+The helper count is `max(H - 2, 0)`, where `H` is a positive
+`navigator.hardwareConcurrency` value or eight otherwise. A simulation owner
+also helps execute queued work, and a render owner may help while joining CPU
+preparation. An application may run audio generation in its own worker, outside
+this helper budget. This is an architectural data-flow model, not a mandatory
+graph assembled by the engine for every application. The application chooses
+captured state, task ordering, and the input used by its audio producer. In the
+browser, the main thread publishes input events and viewport snapshots; the simulation pump decides
 fixed-step policy from elapsed time, and the render loop consumes the latest
 presentation state when a display frame is requested. Timer cadence is a wakeup
 policy, not a simulation timestep. A subsystem may run serially where ordering or
@@ -164,6 +195,14 @@ Each physics world has one owner for stepping and mutation. The simulation task
 orders inputs, advances that world, and makes its results available to downstream
 work. Separate worlds can be scheduled independently. The application's cadence
 and publication model remain outside the physics adapter.
+
+Without a shared executor, a world keeps Jolt's serial job system for native
+callers. Supplying the application's executor sends every ready internal Jolt job
+to the same engine scheduler used by simulation systems. `step()` helps that
+queue until Jolt's barrier and callback cleanup have completed, while the world
+remains owned by its simulation task. The executor must outlive the world.
+Jolt jobs and barriers stay within the adapter's lifetime, and job callbacks
+must not throw.
 
 ECS is not the internal representation of every engine service. A physics-body
 component may hold a Jolt body handle while Jolt owns its bodies and acceleration

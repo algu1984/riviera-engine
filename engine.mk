@@ -23,7 +23,8 @@ ENGINE_WEB_AUDIO_WORKLET := $(ENGINE_ROOT)/web/engine-worklet.js
 # WebAssembly static library that contributes to its shared-memory module.
 ENGINE_WEB_THREAD_CPPFLAGS := -pthread
 ENGINE_WEB_THREAD_LDFLAGS := -pthread -sOFFSCREENCANVAS_SUPPORT=1 \
-  -sPTHREAD_POOL_SIZE=2 --use-port=emdawnwebgpu
+  -sPTHREAD_POOL_SIZE='Math.max(2, (typeof navigator !== "undefined" && Number.isFinite(navigator.hardwareConcurrency) && navigator.hardwareConcurrency > 0) ? Math.floor(navigator.hardwareConcurrency) : 8)' \
+  --use-port=emdawnwebgpu
 ENGINE_WEB_COMPILE_FLAGS := $(ENGINE_WEB_THREAD_CPPFLAGS)
 ENGINE_WEB_LINK_FLAGS := $(ENGINE_WEB_THREAD_LDFLAGS)
 ENGINE_JOLT_WASM_PTHREAD_ARCHIVE := $(ENGINE_ROOT)/build/jolt-wasm-pthread/libJolt.a

@@ -1,4 +1,5 @@
 #include "engine/platform/web/host.hpp"
+#include "engine/jobs/browser_thread_budget.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -297,6 +298,18 @@ void runSimulation(void (*pump)(), int intervalMs) {
 
 bool isMainThread() {
     return emscripten_is_main_runtime_thread();
+}
+
+unsigned hardwareThreadCount() {
+    const unsigned reported = static_cast<unsigned>(EM_ASM_INT({
+        const count = typeof navigator === 'undefined' ? 0 : navigator.hardwareConcurrency;
+        return Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
+    }));
+    return engine::jobs::browserThreadBudget(reported).hardwareThreads;
+}
+
+unsigned computeWorkerCount() {
+    return engine::jobs::browserThreadBudget(hardwareThreadCount()).computeWorkers;
 }
 
 void dispatchMain(void (*callback)(void*), void* userData) {
