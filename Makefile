@@ -1,6 +1,8 @@
 CXX ?= clang++
 AR ?= ar
 EMXX ?= em++
+# Resolve through the shell so non-executable SDK cmake directories are skipped.
+CMAKE ?= $(shell command -v cmake || printf cmake)
 CXXFLAGS ?= -std=c++20 -O2 -Wall -Wextra -pthread
 .DEFAULT_GOAL := all
 ENGINE_ROOT := $(abspath .)
@@ -114,12 +116,12 @@ particle-test: build/particle-test
 	./build/particle-test
 
 build/jolt-wasm/libJolt.a: $(ENGINE_JOLT_FILES) $(ENGINE_DEPENDENCIES_MANIFEST) Makefile engine.mk | require-dependencies
-	emcmake cmake -S $(JOLT_ROOT)/Build -B build/jolt-wasm $(JOLT_FLAGS)
-	cmake --build build/jolt-wasm --target Jolt -j 6
+	emcmake $(CMAKE) -S $(JOLT_ROOT)/Build -B build/jolt-wasm $(JOLT_FLAGS)
+	$(CMAKE) --build build/jolt-wasm --target Jolt -j 6
 $(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE): $(ENGINE_JOLT_FILES) $(ENGINE_DEPENDENCIES_MANIFEST) Makefile engine.mk | require-dependencies
-	emcmake cmake -S $(JOLT_ROOT)/Build -B $(dir $(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE)) $(JOLT_FLAGS) \
+	emcmake $(CMAKE) -S $(JOLT_ROOT)/Build -B $(dir $(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE)) $(JOLT_FLAGS) \
 	  -DCMAKE_C_FLAGS=-pthread -DCMAKE_CXX_FLAGS=-pthread
-	cmake --build $(dir $(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE)) --target Jolt -j 6
+	$(CMAKE) --build $(dir $(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE)) --target Jolt -j 6
 build/jolt-wasm-pthread/libJolt.a: $(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE)
 jolt-wasm-pthread: $(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE)
 build/web-worker-probe.html: tests/web_worker_probe.cpp tests/web_worker_probe_shell.html \
@@ -133,8 +135,8 @@ build/web-worker-probe.html: tests/web_worker_probe.cpp tests/web_worker_probe_s
 	  --shell-file tests/web_worker_probe_shell.html -o $@
 web-worker-probe: build/web-worker-probe.html
 build/jolt-native/libJolt.a: $(ENGINE_JOLT_FILES) $(ENGINE_DEPENDENCIES_MANIFEST) Makefile engine.mk | require-dependencies
-	cmake -S $(JOLT_ROOT)/Build -B build/jolt-native $(JOLT_FLAGS)
-	cmake --build build/jolt-native --target Jolt -j 6
+	$(CMAKE) -S $(JOLT_ROOT)/Build -B build/jolt-native $(JOLT_FLAGS)
+	$(CMAKE) --build build/jolt-native --target Jolt -j 6
 
 build/physics-world-test: tests/physics_world.cpp $(ENGINE_ROOT)/src/jobs/executor.cpp \
   $(ENGINE_ROOT)/src/physics/physics_world.cpp $(ENGINE_ROOT)/src/physics/scheduler_job_system.cpp \
