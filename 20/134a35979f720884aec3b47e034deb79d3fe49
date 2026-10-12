@@ -1,0 +1,26 @@
+Makefile
+  s_fbdf8bf039c74a::t_6365ae4c4ed428 119-120,122-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.9",
+  "base_commit_sha": "20134a35979f720884aec3b47e034deb79d3fe49",
+  "prompts": {},
+  "sessions": {
+    "s_fbdf8bf039c74a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10d24-65ec-7e72-9466-f1d1d208f4ac",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Alexandr Hmyriak <agmyryak@playtika.com>",
+      "token_usage": {
+        "input_tokens": 66273,
+        "output_tokens": 15119,
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 3694336
+      },
+      "billing_source": "subscription"
+    }
+  }
+}
