@@ -116,11 +116,12 @@ particle-test: build/particle-test
 build/jolt-wasm/libJolt.a: $(ENGINE_JOLT_FILES) $(ENGINE_DEPENDENCIES_MANIFEST) Makefile engine.mk | require-dependencies
 	emcmake cmake -S $(JOLT_ROOT)/Build -B build/jolt-wasm $(JOLT_FLAGS)
 	cmake --build build/jolt-wasm --target Jolt -j 6
-build/jolt-wasm-pthread/libJolt.a: $(ENGINE_JOLT_FILES) $(ENGINE_DEPENDENCIES_MANIFEST) Makefile engine.mk | require-dependencies
-	emcmake cmake -S $(JOLT_ROOT)/Build -B build/jolt-wasm-pthread $(JOLT_FLAGS) \
+$(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE): $(ENGINE_JOLT_FILES) $(ENGINE_DEPENDENCIES_MANIFEST) Makefile engine.mk | require-dependencies
+	emcmake cmake -S $(JOLT_ROOT)/Build -B $(dir $(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE)) $(JOLT_FLAGS) \
 	  -DCMAKE_C_FLAGS=-pthread -DCMAKE_CXX_FLAGS=-pthread
-	cmake --build build/jolt-wasm-pthread --target Jolt -j 6
-jolt-wasm-pthread: build/jolt-wasm-pthread/libJolt.a
+	cmake --build $(dir $(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE)) --target Jolt -j 6
+build/jolt-wasm-pthread/libJolt.a: $(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE)
+jolt-wasm-pthread: $(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE)
 build/web-worker-probe.html: tests/web_worker_probe.cpp tests/web_worker_probe_shell.html \
 	$(ENGINE_ROOT)/src/platform/web/host.cpp $(ENGINE_ROOT)/src/platform/web/gpu_surface.cpp \
 	$(ENGINE_HEADERS) engine.mk Makefile
