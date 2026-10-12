@@ -49,7 +49,7 @@ JOLT_FLAGS := -G Ninja -DCMAKE_BUILD_TYPE=Distribution -DTARGET_UNIT_TESTS=OFF \
 
 .PHONY: all build test deps deps-check require-dependencies engine-test scene-test ecs-integration-test ui-test particle-test physics-world-test physics-scheduler-test core-test jolt-wasm-pthread web-worker-probe \
   ecs-test runtime-test hierarchy-test jobs-test xenium-portability-test wasm-test ecs-wasm-test \
-  clean format format-check
+  clean format format-check demo-workloads-test physics-demo-test demo-test
 
 all: build test
 
@@ -170,7 +170,27 @@ wasm-test:
 ecs-wasm-test:
 	$(MAKE) -C "$(CORE_ROOT)" wasm-test
 
-test: require-dependencies engine-test scene-test ecs-integration-test ui-test particle-test physics-world-test physics-scheduler-test core-test
+test: require-dependencies engine-test scene-test ecs-integration-test ui-test particle-test physics-world-test physics-scheduler-test demo-test core-test
+
+
+build/demo-workloads-test: src/jobs/executor.cpp $(CORE_SOURCES) \
+  examples/webgpu-renderer-demo/ecs_demo.cpp examples/webgpu-renderer-demo/jobs_demo.cpp \
+  tests/demo_workloads.cpp $(ENGINE_HEADERS) $(CORE_HEADERS) Makefile engine.mk
+	mkdir -p build
+	$(CXX) $(TEST_FLAGS) -UNDEBUG -I$(ENGINE_ROOT) $(filter %.cpp,$^) -o $@
+demo-workloads-test: build/demo-workloads-test
+	./build/demo-workloads-test
+
+build/physics-demo-test: tests/physics_demo.cpp src/jobs/executor.cpp \
+  src/physics/physics_world.cpp src/physics/scheduler_job_system.cpp \
+  examples/webgpu-renderer-demo/physics_demo.cpp $(CORE_SOURCES) \
+  $(ENGINE_HEADERS) $(CORE_HEADERS) $(ENGINE_JOLT_HEADERS) Makefile engine.mk build/jolt-native/libJolt.a
+	mkdir -p build
+	$(CXX) $(TEST_FLAGS) -UNDEBUG -DJPH_OBJECT_STREAM -DJPH_NO_DEBUG $(filter %.cpp,$^) \
+	  build/jolt-native/libJolt.a -o $@
+physics-demo-test: require-dependencies build/physics-demo-test
+	./build/physics-demo-test
+demo-test: require-dependencies demo-workloads-test physics-demo-test
 
 -include tools/format.mk
 
@@ -182,19 +202,27 @@ WEBGPU_DEMO_PAGE_SOURCES := examples/webgpu-renderer-demo/index.html \
   examples/webgpu-renderer-demo/benchmarks.html \
   examples/webgpu-renderer-demo/coi-serviceworker.js \
   examples/webgpu-renderer-demo/style.css docs/PERFORMANCE.md LICENSE \
-  third_party/cgltf/LICENSE third_party/stb/LICENSE \
+  third_party/cgltf/LICENSE third_party/stb/LICENSE third_party/jolt/LICENSE \
+  $(CORE_ROOT)/third_party/xenium/LICENSE \
   $(CORE_ROOT)/benchmarks/results/native-sample.json
 .PHONY: webgpu-renderer-demo
-$(WEBGPU_DEMO_DIR)/index.js: examples/webgpu-renderer-demo/main.cpp \
+WEBGPU_DEMO_CPP_SOURCES := examples/webgpu-renderer-demo/main.cpp \
+  examples/webgpu-renderer-demo/ecs_demo.cpp examples/webgpu-renderer-demo/jobs_demo.cpp \
+  examples/webgpu-renderer-demo/physics_demo.cpp src/jobs/executor.cpp \
+  src/physics/physics_world.cpp src/physics/scheduler_job_system.cpp \
   src/renderer.cpp src/platform/web/host.cpp src/platform/web/gpu_surface.cpp \
-  src/graphics/frame_graph/frame_graph.cpp $(ENGINE_HEADERS) $(CORE_HEADERS) \
+  src/graphics/frame_graph/frame_graph.cpp $(CORE_SOURCES)
+$(WEBGPU_DEMO_DIR)/index.js: $(WEBGPU_DEMO_CPP_SOURCES) \
+  examples/webgpu-renderer-demo/workload.hpp examples/webgpu-renderer-demo/ecs_demo.hpp \
+  examples/webgpu-renderer-demo/jobs_demo.hpp examples/webgpu-renderer-demo/physics_demo.hpp \
+  $(ENGINE_HEADERS) $(CORE_HEADERS) $(ENGINE_JOLT_HEADERS) $(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE) \
   engine.mk Makefile
 	mkdir -p $(WEBGPU_DEMO_DIR)
 	$(EMXX) -std=c++20 -O2 -Wall -Wextra $(ENGINE_WEB_THREAD_CPPFLAGS) \
-	  $(ENGINE_WEB_THREAD_LDFLAGS) -sASSERTIONS=1 $(ENGINE_INCLUDE_FLAGS) \
-	  examples/webgpu-renderer-demo/main.cpp src/renderer.cpp \
-	  src/platform/web/host.cpp src/platform/web/gpu_surface.cpp \
-	  src/graphics/frame_graph/frame_graph.cpp -o $@
+	  $(ENGINE_WEB_THREAD_LDFLAGS) -sASSERTIONS=1 -sINITIAL_MEMORY=67108864 \
+	  -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=536870912 $(ENGINE_INCLUDE_FLAGS) \
+	  $(ENGINE_JOLT_CPPFLAGS) $(WEBGPU_DEMO_CPP_SOURCES) \
+	  $(ENGINE_JOLT_WASM_PTHREAD_ARCHIVE) -o $@
 $(WEBGPU_DEMO_DIR)/index.html: $(WEBGPU_DEMO_PAGE_SOURCES) $(WEBGPU_DEMO_DIR)/index.js
 	cp examples/webgpu-renderer-demo/index.html $@
 	cp examples/webgpu-renderer-demo/coi-serviceworker.js $(WEBGPU_DEMO_DIR)/coi-serviceworker.js
@@ -207,5 +235,7 @@ $(WEBGPU_DEMO_DIR)/index.html: $(WEBGPU_DEMO_PAGE_SOURCES) $(WEBGPU_DEMO_DIR)/in
 	mkdir -p $(WEBGPU_DEMO_DIR)/licenses
 	cp third_party/cgltf/LICENSE $(WEBGPU_DEMO_DIR)/licenses/cgltf-LICENSE
 	cp third_party/stb/LICENSE $(WEBGPU_DEMO_DIR)/licenses/stb-LICENSE
+	cp third_party/jolt/LICENSE $(WEBGPU_DEMO_DIR)/licenses/jolt-LICENSE
+	cp $(CORE_ROOT)/third_party/xenium/LICENSE $(WEBGPU_DEMO_DIR)/licenses/xenium-LICENSE
 webgpu-renderer-demo: $(WEBGPU_DEMO_DIR)/index.html $(WEBGPU_DEMO_DIR)/index.js
 	test -s $(WEBGPU_DEMO_DIR)/index.wasm

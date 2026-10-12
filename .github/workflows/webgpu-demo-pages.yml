@@ -23,9 +23,6 @@ jobs:
           path: riviera-engine
           submodules: false
 
-      - name: Initialize renderer asset libraries
-        run: git -C riviera-engine submodule update --init third_party/cgltf third_party/stb
-
       - name: Check out Riviera Engine Core
         uses: actions/checkout@v4
         with:
@@ -33,6 +30,9 @@ jobs:
           ref: d65ad198f38c690bdbd38cdcea972f8bb16154eb
           path: riviera-engine-core
           persist-credentials: false
+
+      - name: Prepare pinned engine and core dependencies
+        run: make -C riviera-engine deps CORE_ROOT="$GITHUB_WORKSPACE/riviera-engine-core"
 
       - name: Check out Emscripten SDK
         uses: actions/checkout@v4
@@ -56,6 +56,8 @@ jobs:
           test -s riviera-engine/build/webgpu-renderer-demo/index.wasm
           test -s riviera-engine/build/webgpu-renderer-demo/benchmarks.html
           test -s riviera-engine/build/webgpu-renderer-demo/benchmarks/native-sample.json
+          test -s riviera-engine/build/webgpu-renderer-demo/licenses/jolt-LICENSE
+          test -s riviera-engine/build/webgpu-renderer-demo/licenses/xenium-LICENSE
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

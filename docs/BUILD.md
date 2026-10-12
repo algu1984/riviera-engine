@@ -9,10 +9,13 @@ WebAssembly archive explicitly when an application needs it.
 Set `CORE_ROOT`, `JOLT_ROOT`, `CGLTF_ROOT`, or `STB_ROOT` to use alternate
 checkouts. `make test` runs engine and core native checks, including the generic
 physics service smoke test. `make wasm-test` runs core's pthread-enabled portability
-tests under Node. The browser renderer uses Emscripten's Dawn WebGPU port and is
-integrated by a parent application. `make webgpu-renderer-demo` builds an isolated
-procedural workload page that uses the real engine renderer; serve it with
-`python3 examples/webgpu-renderer-demo/serve.py`. See [performance demo notes](docs/PERFORMANCE.md). To build Jolt independently, run
+tests under Node. The browser demo uses Emscripten's Dawn WebGPU port, one shared Engine executor,
+and the real renderer, ECS hierarchy, jobs, and Jolt physics integrations.
+`make webgpu-renderer-demo` builds the threaded WebAssembly page, including the
+pinned Jolt WebAssembly library. Serve it with
+`python3 examples/webgpu-renderer-demo/serve.py`. The page offers Renderer,
+ECS hierarchy, Job systems, Jolt physics, and a fixed PBR material grid. See
+[performance demo notes](PERFORMANCE.md). To build Jolt independently, run
 `make build/jolt-native/libJolt.a` or `make build/jolt-wasm/libJolt.a`.
 The [live WebGPU demo](https://algu1984.github.io/riviera-engine/) and
 [Core benchmark results](https://algu1984.github.io/riviera-engine/benchmarks.html)

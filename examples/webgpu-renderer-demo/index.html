@@ -11,25 +11,50 @@
       <header>
         <div>
           <span class="eyebrow">RIVIERA ENGINE · WEBGPU</span>
-          <h1>Renderer workload</h1>
+          <h1 id="page-title">Renderer workload</h1>
         </div>
-        <label class="count"
-          >Objects
-          <select id="count">
-            <option value="100">100</option>
-            <option value="1000">1,000</option>
-            <option value="4000">4,000</option>
-          </select></label
-        >
+        <div class="controls">
+          <label class="count"
+            >Mode
+            <select id="mode">
+              <option value="0">Renderer</option>
+              <option value="1">ECS hierarchy</option>
+              <option value="2">Job systems</option>
+              <option value="3">Jolt physics</option>
+              <option value="4">PBR material grid</option>
+            </select>
+          </label>
+          <label class="count"
+            >Objects / bodies
+            <select id="count"></select>
+          </label>
+          <label class="count"
+            >Helpers · reload
+            <select id="helpers">
+              <option value="auto">Auto</option>
+              <option value="0">0</option>
+              <option value="2">2</option>
+              <option value="4">4</option>
+              <option value="8">8</option>
+            </select>
+          </label>
+          <button id="reset-demo" type="button">Reset workload</button>
+        </div>
       </header>
       <section class="stage">
         <canvas id="game" width="1024" height="640"></canvas>
         <div id="boot-status" role="status">Checking browser isolation…</div>
         <div id="render-error" hidden>
-          Renderer reported a WebGPU error. See the browser console.
+          Renderer or workload reported an error. Check the browser console.
+        </div>
+        <div id="pbr-legend" hidden>
+          Roughness 0.04 → 1.00 (world X) · metallic 0 → 1.00 (world Z)
         </div>
       </section>
       <section class="metrics" aria-label="Live renderer measurements">
+        <div>
+          <span>Active workload</span><strong id="metric-mode">Starting</strong>
+        </div>
         <div>
           <span>Frame cadence</span><strong id="metric-fps">—</strong
           ><small id="metric-cadence">—</small>
@@ -39,12 +64,42 @@
           ><small>includes command submission; not GPU time</small>
         </div>
         <div>
-          <span>Simulation pump</span><strong id="metric-sim">—</strong
-          ><small>fixed 120 Hz clock</small>
+          <span>Simulation pump CPU</span><strong id="metric-sim">—</strong
+          ><small>whole worker pump, includes extraction when requested</small>
         </div>
         <div>
           <span>Draw records</span><strong id="metric-draws">—</strong
           ><small>reused cube and sphere meshes</small>
+        </div>
+        <div>
+          <span>Simulated entities</span><strong id="metric-entities">—</strong
+          ><small>draw visibility is capped at 4,096</small>
+        </div>
+        <div>
+          <span>Systems and tasks</span><strong id="metric-work">—</strong
+          ><small>workload-reported scheduler activity</small>
+        </div>
+        <div>
+          <span>Helper execution</span><strong id="metric-helpers">—</strong
+          ><small>completed since last step · task peak</small>
+        </div>
+        <div>
+          <span>Workload checksum</span><strong id="metric-checksum">—</strong
+          ><small>deterministic state summary where available</small>
+        </div>
+        <div>
+          <span>Simulation step and extraction</span
+          ><strong id="metric-step">—</strong
+          ><small>CPU workload time; extraction is separate</small>
+        </div>
+        <div>
+          <span>Executor helpers</span><strong id="metric-pool">—</strong
+          ><small>actual and requested helper threads</small>
+        </div>
+        <div>
+          <span>Discarded clock time</span
+          ><strong id="metric-discarded">—</strong
+          ><small>cumulative fixed-step clock delay</small>
         </div>
         <div>
           <span>Simulation ticks</span><strong id="metric-ticks">—</strong
@@ -59,8 +114,8 @@
           ><small>on simulation worker</small>
         </div>
         <div>
-          <span>Capacity growths</span><strong id="metric-grows">—</strong
-          ><small>counted after startup reserve</small>
+          <span>Draw buffer growths</span><strong id="metric-grows">—</strong
+          ><small>reusable snapshot vector capacity changes</small>
         </div>
         <div>
           <span>Rendered frames</span><strong id="metric-frames">—</strong
@@ -109,10 +164,91 @@
         onRuntimeInitialized() {
           bootStatus.hidden = true;
           const count = document.getElementById("count");
+          const mode = document.getElementById("mode");
+          const helpers = document.getElementById("helpers");
           const angle = document.getElementById("angle");
+          const modeCounts = {
+            0: [
+              [100, "100"],
+              [1000, "1,000"],
+              [4000, "4,000"],
+            ],
+            1: [
+              [1000, "1,000"],
+              [10000, "10,000"],
+              [100000, "100,000"],
+            ],
+            2: [
+              [1000, "1,000"],
+              [10000, "10,000"],
+              [100000, "100,000"],
+            ],
+            3: [
+              [100, "100"],
+              [500, "500"],
+              [1000, "1,000"],
+              [2000, "2,000"],
+            ],
+            4: [[35, "35 fixed spheres"]],
+          };
+          function configureCountOptions() {
+            const options = modeCounts[mode.value];
+            const previous = Number(count.value);
+            count.replaceChildren(
+              ...options.map(([value, label]) => {
+                const option = document.createElement("option");
+                option.value = String(value);
+                option.textContent = label;
+                return option;
+              }),
+            );
+            count.disabled = mode.value === "4";
+            count.value = String(
+              options.some(([value]) => value === previous)
+                ? previous
+                : options[0][0],
+            );
+            document.getElementById("page-title").textContent =
+              mode.selectedOptions[0].textContent;
+            document.getElementById("pbr-legend").hidden = mode.value !== "4";
+          }
+          mode.addEventListener("change", () => {
+            configureCountOptions();
+            Module._set_demo_mode(Number(mode.value));
+            Module._set_object_count(Number(count.value));
+          });
           count.addEventListener("change", () =>
             Module._set_object_count(Number(count.value)),
           );
+          configureCountOptions();
+          Module._set_demo_mode(Number(mode.value));
+          Module._set_object_count(Number(count.value));
+          const helperParam =
+            new URLSearchParams(location.search).get("helpers") || "auto";
+          const detectedThreads =
+            Number.isFinite(navigator.hardwareConcurrency) &&
+            navigator.hardwareConcurrency > 0
+              ? Math.floor(navigator.hardwareConcurrency)
+              : 8;
+          const helperCap = Math.max(0, detectedThreads - 2);
+          for (const option of helpers.options) {
+            if (option.value !== "auto")
+              option.disabled = Number(option.value) > helperCap;
+          }
+          helpers.value = Array.from(helpers.options).some(
+            (option) => option.value === helperParam,
+          )
+            ? helperParam
+            : "auto";
+          document
+            .getElementById("reset-demo")
+            .addEventListener("click", () => Module._reset_demo());
+          helpers.addEventListener("change", () => {
+            const url = new URL(location.href);
+            if (helpers.value === "auto") url.searchParams.delete("helpers");
+            else url.searchParams.set("helpers", helpers.value);
+            location.href = url.href;
+          });
           angle.addEventListener("input", () =>
             Module._set_camera_angle(Number(angle.value)),
           );
@@ -120,10 +256,17 @@
             .getElementById("download-report")
             .addEventListener("click", () => {
               const ids = [
+                "metric-mode",
                 "metric-fps",
                 "metric-cadence",
                 "metric-cpu",
                 "metric-sim",
+                "metric-step",
+                "metric-entities",
+                "metric-work",
+                "metric-helpers",
+                "metric-checksum",
+                "metric-pool",
                 "metric-draws",
                 "metric-age",
                 "metric-extractions",
@@ -137,7 +280,9 @@
                   document.getElementById(id).textContent,
                 ]),
               );
+              report.mode = mode.selectedOptions[0].textContent;
               report.objectCount = Number(count.value);
+              report.helperSelection = helpers.value;
               report.resolution = "1024x640";
               report.capturedAt = new Date().toISOString();
               const link = document.createElement("a");
@@ -146,7 +291,7 @@
                   type: "application/json",
                 }),
               );
-              link.download = "riviera-webgpu-renderer-report.json";
+              link.download = "riviera-webgpu-demo-report.json";
               link.click();
               URL.revokeObjectURL(link.href);
             });

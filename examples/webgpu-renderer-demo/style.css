@@ -183,3 +183,29 @@ td:first-child {
     margin-left: 0;
   }
 }
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.count {
+  flex-wrap: wrap;
+}
+select:disabled {
+  opacity: 0.7;
+}
+#pbr-legend {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 8px 11px;
+  border: 1px solid #39485d;
+  border-radius: 6px;
+  background: rgb(16 21 29 / 88%);
+  color: #e9eff8;
+  font-size: 12px;
+}
+#pbr-legend[hidden] {
+  display: none;
+}
