@@ -19,6 +19,12 @@ This repository currently provides:
 - A WebGPU renderer with a forward scene path, shadows, sky, MSAA resolve and UI
   passes, plus direct glTF geometry/material and PNG/JPEG texture import. Public
   renderer material and mesh interfaces still expose raw WebGPU handles.
+- A surface-free `ComputeContext` that asynchronously requests a WebGPU adapter
+  and device, reports initialization and device-loss errors, and exposes the
+  instance, adapter, device and queue to caller-owned compute work. It requests
+  the adapter's supported buffer and storage binding limits; dispatch math,
+  resource layouts, operation error scopes and readback policy remain
+  application-owned.
 - A frame graph that validates pass dependencies, resource versions and attachment
   rules; prunes unneeded passes; and assigns compatible nonoverlapping transient
   texture lifetimes to logical slots. WebGPU provides implicit transitions; the
@@ -69,6 +75,13 @@ notes](PERFORMANCE.md) for its metrics, fixed resolution, publishing steps and t
 existing 4,096-draw renderer limit. All linked C++ static libraries, including
 Jolt, must be compiled with the same `-pthread` setting; `make jolt-wasm-pthread`
 produces the matching Jolt archive.
+
+`make web-compute-smoke` builds a standalone, single-threaded WebGPU page that
+uses `ComputeContext` to run WGSL vector addition and checks GPU readback against
+a CPU reference. Run it from a secure localhost origin in a browser with WebGPU
+enabled; it uses no canvas or renderer and does not link Core or Jolt. Call
+`ComputeContext::ProcessEvents()` from the owning event loop to deliver callbacks
+registered with `CallbackMode::AllowProcessEvents`.
 
 `make web-worker-probe` builds an optional browser page that exercises the host's
 real worker launch, worker-side WebGPU adapter/device creation, surface setup and

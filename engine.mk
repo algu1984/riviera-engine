@@ -27,4 +27,7 @@ ENGINE_WEB_THREAD_LDFLAGS := -pthread -sOFFSCREENCANVAS_SUPPORT=1 \
   --use-port=emdawnwebgpu
 ENGINE_WEB_COMPILE_FLAGS := $(ENGINE_WEB_THREAD_CPPFLAGS)
 ENGINE_WEB_LINK_FLAGS := $(ENGINE_WEB_THREAD_LDFLAGS)
+# Headless WebGPU compute clients do not require pthreads or OffscreenCanvas.
+ENGINE_WEB_COMPUTE_COMPILE_FLAGS := --use-port=emdawnwebgpu
+ENGINE_WEB_COMPUTE_LINK_FLAGS := --use-port=emdawnwebgpu
 ENGINE_JOLT_WASM_PTHREAD_ARCHIVE := $(ENGINE_ROOT)/build/jolt-wasm-pthread/libJolt.a

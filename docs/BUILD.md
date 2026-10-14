@@ -17,6 +17,11 @@ pinned Jolt WebAssembly library. Serve it with
 ECS hierarchy, Job systems, Jolt physics, and a fixed PBR material grid. See
 [performance demo notes](PERFORMANCE.md). To build Jolt independently, run
 `make build/jolt-native/libJolt.a` or `make build/jolt-wasm/libJolt.a`.
+`make web-compute-smoke` builds a separate single-threaded headless WebGPU page
+that validates `ComputeContext` with a WGSL vector addition and CPU comparison.
+Serve `build/webgpu-compute-smoke` from localhost and check the page's
+`data-compute-smoke` attribute for `pass`. The page does not use a canvas or
+renderer and its binary does not link Core or Jolt.
 The [live WebGPU demo](https://algu1984.github.io/riviera-engine/) and
 [Core benchmark results](https://algu1984.github.io/riviera-engine/benchmarks.html)
 are published through the manually dispatched `Build and publish WebGPU demo`

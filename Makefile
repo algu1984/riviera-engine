@@ -49,7 +49,7 @@ JOLT_FLAGS := -G Ninja -DCMAKE_BUILD_TYPE=Distribution -DTARGET_UNIT_TESTS=OFF \
   -DINTERPROCEDURAL_OPTIMIZATION=OFF -DENABLE_ALL_WARNINGS=OFF -DJPH_USE_DX12=OFF \
   -DJPH_USE_VK=OFF -DJPH_USE_MTL=OFF -DJPH_USE_CPU_COMPUTE=OFF
 
-.PHONY: all build test deps deps-check require-dependencies engine-test scene-test ecs-integration-test ui-test particle-test physics-world-test physics-scheduler-test core-test jolt-wasm-pthread web-worker-probe \
+.PHONY: all build test deps deps-check require-dependencies engine-test scene-test ecs-integration-test ui-test particle-test physics-world-test physics-scheduler-test core-test jolt-wasm-pthread web-worker-probe web-compute-smoke \
   ecs-test runtime-test hierarchy-test jobs-test xenium-portability-test wasm-test ecs-wasm-test \
   clean format format-check demo-workloads-test physics-demo-test demo-test
 
@@ -242,3 +242,13 @@ $(WEBGPU_DEMO_DIR)/index.html: $(WEBGPU_DEMO_PAGE_SOURCES) $(WEBGPU_DEMO_DIR)/in
 	cp $(CORE_ROOT)/third_party/xenium/LICENSE $(WEBGPU_DEMO_DIR)/licenses/xenium-LICENSE
 webgpu-renderer-demo: $(WEBGPU_DEMO_DIR)/index.html $(WEBGPU_DEMO_DIR)/index.js
 	test -s $(WEBGPU_DEMO_DIR)/index.wasm
+
+WEBGPU_COMPUTE_SMOKE_DIR := $(ENGINE_ROOT)/build/webgpu-compute-smoke
+WEBGPU_COMPUTE_SMOKE_SOURCES := examples/web-compute-smoke.cpp src/compute_context.cpp
+$(WEBGPU_COMPUTE_SMOKE_DIR)/index.html: $(WEBGPU_COMPUTE_SMOKE_SOURCES) $(ENGINE_HEADERS) engine.mk Makefile
+	mkdir -p $(WEBGPU_COMPUTE_SMOKE_DIR)
+	$(EMXX) -std=c++20 -O2 -Wall -Wextra $(ENGINE_WEB_COMPUTE_COMPILE_FLAGS) \
+	  $(ENGINE_WEB_COMPUTE_LINK_FLAGS) $(ENGINE_INCLUDE_FLAGS) \
+	  $(WEBGPU_COMPUTE_SMOKE_SOURCES) -o $@
+web-compute-smoke: $(WEBGPU_COMPUTE_SMOKE_DIR)/index.html
+	test -s $(WEBGPU_COMPUTE_SMOKE_DIR)/index.wasm
