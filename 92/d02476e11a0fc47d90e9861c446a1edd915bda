@@ -1,0 +1,53 @@
+docs/ENGINE_STATUS.md
+  s_fbdf8bf039c74a::t_a035c6bd6276a0 23-27
+  s_fbdf8bf039c74a::t_12a8f7a28af55e 22,79-81,83-84
+  s_fbdf8bf039c74a::t_32e6f5d9f6a425 82
+  s_fbdf8bf039c74a::t_8911688cda8ced 85
+src/compute_context.cpp
+  s_fbdf8bf039c74a::t_4a146130e45a45 1-4,9-51,53-64,75,77-140
+  s_fbdf8bf039c74a::t_82c7d42451c7ef 5-8
+  s_fbdf8bf039c74a::t_a035c6bd6276a0 52
+  s_fbdf8bf039c74a::t_a88e6c02bdacda 65-74,76
+docs/BUILD.md
+  s_fbdf8bf039c74a::t_1fbf277bd80430 20-22
+  s_fbdf8bf039c74a::t_32e6f5d9f6a425 23-24
+engine.mk
+  s_fbdf8bf039c74a::t_9eceaf81b158f0 30-32
+include/engine/compute_context.hpp
+  s_fbdf8bf039c74a::t_a035c6bd6276a0 15
+  s_fbdf8bf039c74a::t_c88b3ee7e28a0d 1-12,16-41
+  s_fbdf8bf039c74a::t_646e2ff0e7b08a 13-14
+examples/web-compute-smoke.cpp
+  s_fbdf8bf039c74a::t_646e2ff0e7b08a 3-4,207-208,210
+  s_fbdf8bf039c74a::t_372a915a293266 16-21,70-72,177-184,186-189,201-205
+  s_fbdf8bf039c74a::t_eab9ef091f938b 23-30,85,98
+  s_fbdf8bf039c74a::t_f4e5ebb4792fc6 124-126,128-131,133
+  s_fbdf8bf039c74a::t_64322465f755dc 1-2,6-14,22,31,35-69,73-75,107-108,111-123,127,132,134-172,174-176,185,190-200,206,209,211-213
+  s_fbdf8bf039c74a::t_8893286da21320 5,15,32-34,76-84,86-97,99-106,109-110,173
+Makefile
+  s_fbdf8bf039c74a::t_9a43746e178c96 52,245-249,252-254
+  s_fbdf8bf039c74a::t_9eceaf81b158f0 250-251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.9",
+  "base_commit_sha": "92d02476e11a0fc47d90e9861c446a1edd915bda",
+  "prompts": {},
+  "sessions": {
+    "s_fbdf8bf039c74a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10d24-65ec-7e72-9466-f1d1d208f4ac",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Alexandr Hmyriak <agmyryak@playtika.com>",
+      "token_usage": {
+        "input_tokens": 180014,
+        "output_tokens": 43666,
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 9075712
+      },
+      "billing_source": "subscription"
+    }
+  }
+}
