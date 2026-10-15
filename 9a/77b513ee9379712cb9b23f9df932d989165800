@@ -1,0 +1,26 @@
+README.md
+  s_fbdf8bf039c74a::t_451427191c23ea 143-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.9",
+  "base_commit_sha": "9a77b513ee9379712cb9b23f9df932d989165800",
+  "prompts": {},
+  "sessions": {
+    "s_fbdf8bf039c74a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10d24-65ec-7e72-9466-f1d1d208f4ac",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Alexandr Hmyriak <agmyryak@playtika.com>",
+      "token_usage": {
+        "input_tokens": 645367,
+        "output_tokens": 105072,
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 37384704
+      },
+      "billing_source": "subscription"
+    }
+  }
+}
