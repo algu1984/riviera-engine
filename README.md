@@ -140,6 +140,9 @@ For commands and setup requirements, see **[Build and tests](docs/BUILD.md)**.
 For design rationale, see [Engine design](docs/ENGINE_DESIGN.md),
 [Engine status](docs/ENGINE_STATUS.md), and
 [dependency pins and patches](dependencies/README.md).
+The [Super π GPU benchmark](https://superpi.web.app/#gpu-pi) demonstrates
+using Engine's headless `ComputeContext` for an application-owned WebGPU
+compute workload.
 
 ## License
 
